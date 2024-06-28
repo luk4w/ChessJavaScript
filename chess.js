@@ -217,8 +217,8 @@ function movePiece() {
 
             const CAPTURE_LEFT = selectedColor === WHITE ? fromPosition - 9 : fromPosition + 9;
             const CAPTURE_RIGHT = selectedColor === WHITE ? fromPosition - 7 : fromPosition + 7;
-            
- 
+
+
             if ((enPassant !== null) && (toPosition === CAPTURE_LEFT && !(ALL_PIECES & (1n << BigInt(CAPTURE_LEFT)))) ||
                 (toPosition === CAPTURE_RIGHT && !(ALL_PIECES & (1n << BigInt(CAPTURE_RIGHT))))) {
                 bitboards[OPPONENT_COLOR][PAWN] &= ~(1n << BigInt(enPassant)); // remove peão marcado para captura en passant
@@ -330,8 +330,6 @@ function handleCellClick(event) {
                     selectedPiece = piece; // Obtem o tipo da peça
                     selectedColor = color; // Obtem a cor da peça selecionada
                     fromPosition = index; // Obtem a posição de origem
-                    console.log(`${pieceToChar(selectedPiece, selectedColor)} ; ${fromPosition}`);
-
                     event.currentTarget.classList.add("selected"); // Marca o quadrado selecionado
                     return;
                 }
@@ -364,6 +362,9 @@ function handleCellClick(event) {
         }
 
         toPosition = index; // Obtem a posição de destino antes de mover a peça
+
+        // console.log(`${pieceToChar(selectedPiece, selectedColor)} ; from: ${fromPosition} ; to: ${toPosition}`);
+
         movePiece(); // Move a peça
 
         // Atualiza as variáveis para o próximo movimento
