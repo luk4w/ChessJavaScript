@@ -5,12 +5,12 @@
 */
 
 // Inicializa o Stockfish
-var wasmSupported = typeof WebAssembly === 'object' && WebAssembly.validate(Uint8Array.of(0x0, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00));
-var stockfish = new Worker(wasmSupported ? './engine/stockfish.wasm.js' : './engine/stockfish.js');
-stockfish.addEventListener('message', function (e) {
-    console.log(e.data);
-});
-stockfish.postMessage('uci');
+// var wasmSupported = typeof WebAssembly === 'object' && WebAssembly.validate(Uint8Array.of(0x0, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00));
+// var stockfish = new Worker(wasmSupported ? './engine/stockfish.wasm.js' : './engine/stockfish.js');
+// stockfish.addEventListener('message', function (e) {
+//     console.log(e.data);
+// });
+// stockfish.postMessage('uci');
 
 // Constantes para as peças
 const PAWN = 0, KNIGHT = 1, BISHOP = 2, ROOK = 3, QUEEN = 4, KING = 5;
@@ -69,10 +69,14 @@ let bitboards = [
 
 let ALL_PIECES_BLACK = 0n;
 let ALL_PIECES_WHITE = 0n;
+let avalaibleMoves = 0n;
 
 let selectedPiece = null;
 let selectedColor = null;
-let selectedPosition = null;
+let fromPosition = null;
+let toPosition = null;
+
+let enPassant = null;
 
 // Inicializa o tabuleiro de xadrez com as posições iniciais das peças.
 function initializeBoard() {
@@ -105,13 +109,7 @@ function updateAllPieces() {
         bitboards[WHITE][ROOK] | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
 }
 
-function movePiece(color, piece, from, to) {
-
-    // Verificar se o movimento é válido
-    if (!isValidMove(color, piece, from, to)) {
-        alert('Movimento inválido!');
-        return;
-    }
+function movePiece() {
 
     /** 
         @COMPORTAMENTO_DE_MEMORIA_PARA_REMOVER_PECA
@@ -194,21 +192,60 @@ function movePiece(color, piece, from, to) {
     
     */
 
-    // Remove a posição original da peça
-    bitboards[color][piece] &= ~(1n << BigInt(from));
+    if (avalaibleMoves & (1n << BigInt(toPosition))) {
 
-    // Mascara de bits para a nova posição da peça
-    let toMask = 1n << BigInt(to);
-    // Adiciona a nova posição da peça
-    bitboards[color][piece] |= toMask;
+        // Remove a posição original da peça
+        bitboards[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
 
-    // Obtem a cor do oponente
-    let opponentColor = color === WHITE ? BLACK : WHITE;
+        // Mascara de bits para a nova posição da peça
+        let toMask = 1n << BigInt(toPosition);
+        // Adiciona a nova posição da peça
+        bitboards[selectedColor][selectedPiece] |= toMask;
 
-    // Iteração nas bitboards adversárias, para verificar se a peça adversária foi capturada
-    for (let opponentPiece = 0; opponentPiece < 6; opponentPiece++) {
-        bitboards[opponentColor][opponentPiece] &= ~toMask;
+        // Obtem a cor do oponente
+        let opponentColor = selectedColor === WHITE ? BLACK : WHITE;
+
+        // Iteração nas bitboards adversárias, para verificar se a peça adversária foi capturada
+        for (let opponentPiece = 0; opponentPiece < 6; opponentPiece++) {
+            bitboards[opponentColor][opponentPiece] &= ~toMask;
+        }
+
+        if (selectedPiece === PAWN) {
+            // Verifica se o peão avançou duas casas em seu primeiro movimento
+            if (Math.abs(fromPosition - toPosition) === 16) {
+                // Peões adversários
+                let OPPONENT_PAWNS = opponentColor === WHITE ? bitboards[WHITE][PAWN] : bitboards[BLACK][PAWN];
+                if (OPPONENT_PAWNS & (1n << BigInt(toPosition - 1)) && toPosition > 24) {
+                    enPassant = toPosition; // marca o peão que pode ser capturado en passant (para direita ou esquerda)
+                }
+                else if (OPPONENT_PAWNS & (1n << BigInt(toPosition + 1)) && toPosition < 39) {
+                    enPassant = toPosition; // marca o peão que pode ser capturado en passant (para direita ou esquerda)
+                }
+                else {
+                    enPassant = null;
+                }
+            }
+            else {
+                enPassant = null;
+            }
+
+            // Verifica se houve peça captura por enPassant
+            if (enPassant !== null) {
+                let s1 = fromPosition + 1;
+                let s2 = fromPosition - 1;
+
+                if (s1 === enPassant || s2 === enPassant) {
+                    let movement = selectedColor === WHITE ? toPosition - 8 : toPosition + 8;
+                    bitboards[opponentColor][PAWN] &= ~(1n << BigInt(movement)); // Remove a peça capturada
+                }
+            }
+        }
     }
+    else {
+        alert("Movimento inválido!");
+    }
+
+    console.log("En passant Position: " + enPassant);
 
 }
 
@@ -279,30 +316,63 @@ function addPieceToCell(index, piece, color) {
     cell.appendChild(pieceDiv);
 }
 
+
+
 // Função para lidar com o clique em uma célula
 function handleCellClick(event) {
     const index = parseInt(event.currentTarget.dataset.index);
 
-    if (selectedPiece === null) {
+    if (fromPosition === null) {
         for (let color = 0; color < 2; color++) {
             for (let piece = 0; piece < 6; piece++) {
                 if (bitboards[color][piece] & (1n << BigInt(index))) {
-                    selectedPiece = piece;
-                    selectedColor = color;
-                    selectedPosition = index;
-                    event.currentTarget.classList.add("selected");
+                    selectedPiece = piece; // Obtem o tipo da peça
+                    selectedColor = color; // Obtem a cor da peça selecionada
+                    fromPosition = index; // Obtem a posição de origem
+                    console.log(`${pieceToChar(selectedPiece, selectedColor)} ; ${fromPosition}`);
+
+                    event.currentTarget.classList.add("selected"); // Marca o quadrado selecionado
                     return;
                 }
             }
         }
     } else {
-        // Mover a peça selecionada
-        movePiece(selectedColor, selectedPiece, selectedPosition, index);
-        selectedPiece = null;
+        // Verifica os movimentos possíveis para a peça selecionada
+        switch (selectedPiece) {
+            case PAWN:
+                avalaibleMoves = getPawnMoves();
+                break;
+            case ROOK:
+                avalaibleMoves = ~0n; // Implementação para teste
+                break;
+            case KNIGHT:
+                avalaibleMoves = ~0n; // Implementação para teste
+                break;
+            case BISHOP:
+                avalaibleMoves = ~0n; // Implementação para teste
+                break;
+            case QUEEN:
+                avalaibleMoves = ~0n; // Implementação para teste
+                break;
+            case KING:
+                avalaibleMoves = ~0n; // Implementação para teste
+                break;
+            default:
+                console.log("Peça não implementada");
+                break;
+        }
+
+        toPosition = index; // Obtem a posição de destino antes de mover a peça
+        movePiece(); // Move a peça
+
+        // Atualiza as variáveis para o próximo movimento
+        fromPosition = null;
         selectedColor = null;
-        selectedPosition = null;
-        document.querySelectorAll(".selected").forEach(cell => cell.classList.remove("selected"));
-        renderBoard();
+        toPosition = null;
+        avalaibleMoves = 0n;
+
+        document.querySelectorAll(".selected").forEach(cell => cell.classList.remove("selected")); // Remove a marcação do quadrado selecionado
+        renderBoard(); // Renderiza as novas posições das peças
     }
 }
 
@@ -311,118 +381,61 @@ initializeBoard();
 renderBoard();
 
 
-// Função para verificar se o movimento é válido
-function isValidMove(color, piece, from, to) {
-    let isValid = false;
-    switch (piece) {
-        case PAWN:
-            isValid = isValidPawnMove(color, from, to);
-            break;
-        case KNIGHT:
-            isValid = isValidKnightMove(from, to);
-            break;
-        case BISHOP:
-            isValid = isValidBishopMove(from, to);
-            break;
-        case ROOK:
-            isValid = isValidRookMove(from, to);
-            break;
-        case QUEEN:
-            isValid = isValidQueenMove(from, to);
-            break;
-        case KING:
-            isValid = isValidKingMove(from, to);
-            break;
-        default:
-            return false;
+function getPawnMoves() {
+
+    let bitboardMoves = 0n;
+
+    // Variáveis comuns
+    const opponentPieces = selectedColor === WHITE ? ALL_PIECES_BLACK : ALL_PIECES_WHITE;
+    const ownPieces = selectedColor === WHITE ? ALL_PIECES_WHITE : ALL_PIECES_BLACK;
+    const advance = selectedColor === WHITE ? -8 : 8;
+    const doubleAdvance = selectedColor === WHITE ? -16 : 16;
+    const startRow = selectedColor === WHITE ? (fromPosition >= 48 && fromPosition <= 55) : (fromPosition >= 8 && fromPosition <= 15);
+    const captureLeft = selectedColor === WHITE ? -7 : 7;
+    const captureRight = selectedColor === WHITE ? -9 : 9;
+    const opponentColor = selectedColor === WHITE ? BLACK : WHITE;
+
+    // Movimento de avanço simples
+    let movement = fromPosition + advance;
+    if (!(opponentPieces & (1n << BigInt(movement)) || (ownPieces & (1n << BigInt(movement))))) {
+        bitboardMoves |= 1n << BigInt(movement);
     }
 
-    if (!isValid) {
-        return false;
-    }
-
-    // Também é necessario verificar se o movimento é ilegal, ou seja, se o rei está em cheque
-    // Para isso, é necessário simular o movimento e verificar se o rei está em cheque
-    
-    return isValid;
-}
-
-function isValidPawnMove(color, from, to) {
-
-    if (color === WHITE) {
-        // Verifica se a casa de destino está ocupada por uma peça branca
-        if (ALL_PIECES_WHITE & (1n << BigInt(to))) {
-            return false;
-        }
-
-        // Movimento de avanço simples
-        if (from - 8 === to && !(ALL_PIECES_BLACK & (1n << BigInt(to)))) {
-            return true;
-        }
-
-        // Movimento de avanço duplo
-        if (from - 16 === to && (from >= 48 && from <= 55) && !(ALL_PIECES_BLACK & (1n << BigInt(to)))) {
-
-            let middleSquare = from - 8;
-            // Verifica se há alguma peça (branca ou preta) na posição intermediária
-            if (ALL_PIECES_BLACK & (1n << BigInt(middleSquare)) || ALL_PIECES_WHITE & (1n << BigInt(middleSquare))) {
-                return false;
-            }
-            return true;
-        }
-
-        // Movimento de captura
-        if (ALL_PIECES_BLACK & (1n << BigInt(to)) && (from - 7 === to || from - 9 === to)) {
-            return true;
-        }
-    }
-    else if (color === BLACK) {
-        // Verifica se a casa de destino está ocupada por uma peça preta
-        if (ALL_PIECES_BLACK & (1n << BigInt(to))) {
-            return false;
-        }
-
-        // Movimento de avanço simples
-        if (from + 8 === to && !(ALL_PIECES_WHITE & (1n << BigInt(to)))) {
-            return true;
-        }
-
-        // Movimento de avanço duplo
-        if (from + 16 === to && (from >= 8 && from <= 15) && !(ALL_PIECES_WHITE & (1n << BigInt(to)))) {
-
-            let middleSquare = from + 8;
-            // Verifica se há alguma peça (branca ou preta) na posição intermediária
-            if (ALL_PIECES_BLACK & (1n << BigInt(middleSquare)) || ALL_PIECES_WHITE & (1n << BigInt(middleSquare))) {
-                return false;
-            }
-            return true;
-        }
-
-        // Movimento de captura
-        if (ALL_PIECES_WHITE & (1n << BigInt(to)) && (from + 7 === to || from + 9 === to)) {
-            return true;
+    // Movimento de avanço duplo
+    movement = fromPosition + doubleAdvance;
+    if (startRow && !(opponentPieces & (1n << BigInt(movement)) || ownPieces & (1n << BigInt(movement)))) {
+        let middleSquare = fromPosition + advance;
+        // Verifica se a casa intermediária está vazia
+        if (!(opponentPieces & (1n << BigInt(middleSquare)) || ownPieces & (1n << BigInt(middleSquare)))) {
+            bitboardMoves |= 1n << BigInt(movement);
         }
     }
 
-    return false;
-}
+    // Movimento de captura
+    movement = fromPosition + captureLeft;
+    if (opponentPieces & (1n << BigInt(movement))) {
+        bitboardMoves |= 1n << BigInt(movement);
+    }
 
-function isValidKnightMove(from, to) {
-    return true;
-}
+    movement = fromPosition + captureRight;
+    if (opponentPieces & (1n << BigInt(movement))) {
+        bitboardMoves |= 1n << BigInt(movement);
+    }
 
-function isValidBishopMove(from, to) {
-    return true;
-}
+    // Movimento de captura en passant
+    if (enPassant !== null) {
+        let s1 = fromPosition + 1;
+        let s2 = fromPosition - 1;
 
-function isValidRookMove(from, to) {
-    return true;
-}
+        if (s1 === enPassant) {
+            movement = fromPosition + captureRight;
+            bitboardMoves |= 1n << BigInt(movement);
+        }
+        else if (s2 === enPassant) {
+            movement = fromPosition + captureLeft;
+            bitboardMoves |= 1n << BigInt(movement);
+        }
+    }
 
-function isValidQueenMove(from, to) {
-    return true;
-}
-
-function isValidKingMove(from, to) {
-    return true;
+    return bitboardMoves;
 }
