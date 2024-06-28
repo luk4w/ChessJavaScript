@@ -67,6 +67,9 @@ let bitboards = [
     new Array(6).fill(0n)   // 6 tipos de peças pretas
 ];
 
+let ALL_PIECES_BLACK = 0n;
+let ALL_PIECES_WHITE = 0n;
+
 let selectedPiece = null;
 let selectedColor = null;
 let selectedPosition = null;
@@ -91,6 +94,15 @@ function initializeBoard() {
     // Reis
     bitboards[WHITE][KING] = 0x1000000000000000n;
     bitboards[BLACK][KING] = 0x0000000000000010n;
+}
+
+// Função para atualizar os bitboards ALL_PIECES
+function updateAllPieces() {
+    ALL_PIECES_BLACK = bitboards[BLACK][PAWN] | bitboards[BLACK][KNIGHT] | bitboards[BLACK][BISHOP] |
+        bitboards[BLACK][ROOK] | bitboards[BLACK][QUEEN] | bitboards[BLACK][KING];
+
+    ALL_PIECES_WHITE = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] |
+        bitboards[WHITE][ROOK] | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
 }
 
 function movePiece(color, piece, from, to) {
@@ -250,6 +262,7 @@ function updatePiecesOnBoard() {
             }
         }
     }
+    updateAllPieces();
 }
 
 // Função para adicionar uma peça na célula
@@ -324,39 +337,69 @@ function isValidMove(color, piece, from, to) {
             return false;
     }
 
+    if (!isValid) {
+        return false;
+    }
+
+    // Também é necessario verificar se o movimento é ilegal, ou seja, se o rei está em cheque
+    // Para isso, é necessário simular o movimento e verificar se o rei está em cheque
+    
     return isValid;
 }
 
 function isValidPawnMove(color, from, to) {
 
-    let futureBitboard = bitboards[color][PAWN] & ~(1n << BigInt(from));
-
     if (color === WHITE) {
+        // Verifica se a casa de destino está ocupada por uma peça branca
+        if (ALL_PIECES_WHITE & (1n << BigInt(to))) {
+            return false;
+        }
+
         // Movimento de avanço simples
-        if (from - 8 === to) {
+        if (from - 8 === to && !(ALL_PIECES_BLACK & (1n << BigInt(to)))) {
             return true;
         }
+
         // Movimento de avanço duplo
-        if (from - 16 === to && (from >= 48 && from <= 55)) {
+        if (from - 16 === to && (from >= 48 && from <= 55) && !(ALL_PIECES_BLACK & (1n << BigInt(to)))) {
+
+            let middleSquare = from - 8;
+            // Verifica se há alguma peça (branca ou preta) na posição intermediária
+            if (ALL_PIECES_BLACK & (1n << BigInt(middleSquare)) || ALL_PIECES_WHITE & (1n << BigInt(middleSquare))) {
+                return false;
+            }
             return true;
         }
 
         // Movimento de captura
-        if (bitboards[BLACK][PAWN] & (1n << BigInt(to)) && (from - 7 === to || from - 9 === to) && (from % 8 !== 0 && from % 8 !== 7)) {
+        if (ALL_PIECES_BLACK & (1n << BigInt(to)) && (from - 7 === to || from - 9 === to)) {
             return true;
         }
     }
     else if (color === BLACK) {
+        // Verifica se a casa de destino está ocupada por uma peça preta
+        if (ALL_PIECES_BLACK & (1n << BigInt(to))) {
+            return false;
+        }
+
         // Movimento de avanço simples
-        if (from + 8 === to) {
+        if (from + 8 === to && !(ALL_PIECES_WHITE & (1n << BigInt(to)))) {
             return true;
         }
+
         // Movimento de avanço duplo
-        if (from + 16 === to && (from >= 8 && from <= 15)) {
+        if (from + 16 === to && (from >= 8 && from <= 15) && !(ALL_PIECES_WHITE & (1n << BigInt(to)))) {
+
+            let middleSquare = from + 8;
+            // Verifica se há alguma peça (branca ou preta) na posição intermediária
+            if (ALL_PIECES_BLACK & (1n << BigInt(middleSquare)) || ALL_PIECES_WHITE & (1n << BigInt(middleSquare))) {
+                return false;
+            }
             return true;
         }
+
         // Movimento de captura
-        if (bitboards[WHITE][PAWN] & (1n << BigInt(to)) && (from + 7 === to || from + 9 === to) && (from % 8 !== 0 && from % 8 !== 7)) {
+        if (ALL_PIECES_WHITE & (1n << BigInt(to)) && (from + 7 === to || from + 9 === to)) {
             return true;
         }
     }
@@ -365,21 +408,21 @@ function isValidPawnMove(color, from, to) {
 }
 
 function isValidKnightMove(from, to) {
-    return false;
+    return true;
 }
 
 function isValidBishopMove(from, to) {
-    return false;
+    return true;
 }
 
 function isValidRookMove(from, to) {
-    return false;
+    return true;
 }
 
 function isValidQueenMove(from, to) {
-    return false;
+    return true;
 }
 
 function isValidKingMove(from, to) {
-    return false;
+    return true;
 }
