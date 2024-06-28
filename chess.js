@@ -203,20 +203,31 @@ function movePiece() {
         bitboards[selectedColor][selectedPiece] |= toMask;
 
         // Obtem a cor do oponente
-        let opponentColor = selectedColor === WHITE ? BLACK : WHITE;
+        const OPPONENT_COLOR = selectedColor === WHITE ? BLACK : WHITE;
 
         // Iteração nas bitboards adversárias, para verificar se a peça adversária foi capturada
         for (let opponentPiece = 0; opponentPiece < 6; opponentPiece++) {
-            bitboards[opponentColor][opponentPiece] &= ~toMask; // Remove a peça adversária
+            bitboards[OPPONENT_COLOR][opponentPiece] &= ~toMask; // Remove a peça adversária
         }
 
         if (selectedPiece === PAWN) {
+
+            // Obtem as peças adversárias
+            const ALL_PIECES = ALL_PIECES_WHITE | ALL_PIECES_BLACK;
+
+            const CAPTURE_LEFT = selectedColor === WHITE ? fromPosition - 9 : fromPosition + 9;
+            const CAPTURE_RIGHT = selectedColor === WHITE ? fromPosition - 7 : fromPosition + 7;
+            
+ 
+            if ((enPassant !== null) && (toPosition === CAPTURE_LEFT && !(ALL_PIECES & (1n << BigInt(CAPTURE_LEFT)))) ||
+                (toPosition === CAPTURE_RIGHT && !(ALL_PIECES & (1n << BigInt(CAPTURE_RIGHT))))) {
+                bitboards[OPPONENT_COLOR][PAWN] &= ~(1n << BigInt(enPassant)); // remove peão marcado para captura en passant
+            }
+
             // Verifica se o peão avançou duas casas em seu primeiro movimento
             if (Math.abs(fromPosition - toPosition) === 16) {
-
                 // Obtem os peões adversários
-                let OPPONENT_PAWNS = opponentColor === WHITE ? bitboards[WHITE][PAWN] : bitboards[BLACK][PAWN];
-
+                const OPPONENT_PAWNS = OPPONENT_COLOR === WHITE ? bitboards[WHITE][PAWN] : bitboards[BLACK][PAWN];
                 // Verifica se o peão adversário está na posição correta para captura en passant
                 if (OPPONENT_PAWNS & (1n << BigInt(toPosition - 1)) && toPosition > 24) {
                     enPassant = toPosition; // marca o peão que pode ser capturado en passant (para direita ou esquerda)
@@ -236,8 +247,6 @@ function movePiece() {
     else {
         alert("Movimento inválido!");
     }
-
-    console.log("En passant Position: " + enPassant);
 
 }
 
@@ -383,8 +392,8 @@ function getPawnMoves() {
     const advance = selectedColor === WHITE ? -8 : 8;
     const doubleAdvance = selectedColor === WHITE ? -16 : 16;
     const startRow = selectedColor === WHITE ? (fromPosition >= 48 && fromPosition <= 55) : (fromPosition >= 8 && fromPosition <= 15);
-    const captureLeft = selectedColor === WHITE ? -7 : 7;
-    const captureRight = selectedColor === WHITE ? -9 : 9;
+    const captureLeft = selectedColor === WHITE ? fromPosition - 9 : fromPosition + 9;
+    const captureRight = selectedColor === WHITE ? fromPosition - 7 : fromPosition + 7;
 
     // Movimento de avanço simples
     let movement = fromPosition + advance;
@@ -402,14 +411,12 @@ function getPawnMoves() {
         }
     }
 
-    // Movimento de captura
-    movement = fromPosition + captureLeft;
+    // Movimentos de captura
+    movement = captureLeft;
     if (opponentPieces & (1n << BigInt(movement))) {
         bitboardMoves |= 1n << BigInt(movement);
     }
-
-    movement = fromPosition + captureRight;
-    // Verifica se a peça adversária está na posição de captura
+    movement = captureRight;
     if (opponentPieces & (1n << BigInt(movement))) {
         bitboardMoves |= 1n << BigInt(movement);
     }
@@ -423,14 +430,12 @@ function getPawnMoves() {
 
         // se a posição lateral s1 for igual a do peão marcado para captura en passant
         if (s1 === enPassant) {
-            // captura no vazio para a direita
-            movement = fromPosition + captureRight;
+            movement = captureLeft
             bitboardMoves |= 1n << BigInt(movement);
         }
         // se a posição lateral s2 for igual a do peão marcado para captura en passant
         else if (s2 === enPassant) {
-            // captura no vazio para a esquerda
-            movement = fromPosition + captureLeft;
+            movement = captureRight;
             bitboardMoves |= 1n << BigInt(movement);
         }
     }
