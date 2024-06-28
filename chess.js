@@ -207,14 +207,17 @@ function movePiece() {
 
         // Iteração nas bitboards adversárias, para verificar se a peça adversária foi capturada
         for (let opponentPiece = 0; opponentPiece < 6; opponentPiece++) {
-            bitboards[opponentColor][opponentPiece] &= ~toMask;
+            bitboards[opponentColor][opponentPiece] &= ~toMask; // Remove a peça adversária
         }
 
         if (selectedPiece === PAWN) {
             // Verifica se o peão avançou duas casas em seu primeiro movimento
             if (Math.abs(fromPosition - toPosition) === 16) {
-                // Peões adversários
+
+                // Obtem os peões adversários
                 let OPPONENT_PAWNS = opponentColor === WHITE ? bitboards[WHITE][PAWN] : bitboards[BLACK][PAWN];
+
+                // Verifica se o peão adversário está na posição correta para captura en passant
                 if (OPPONENT_PAWNS & (1n << BigInt(toPosition - 1)) && toPosition > 24) {
                     enPassant = toPosition; // marca o peão que pode ser capturado en passant (para direita ou esquerda)
                 }
@@ -222,22 +225,11 @@ function movePiece() {
                     enPassant = toPosition; // marca o peão que pode ser capturado en passant (para direita ou esquerda)
                 }
                 else {
-                    enPassant = null;
+                    enPassant = null; // desmarca o peão que pode ser capturado en passant
                 }
             }
             else {
                 enPassant = null;
-            }
-
-            // Verifica se houve peça captura por enPassant
-            if (enPassant !== null) {
-                let s1 = fromPosition + 1;
-                let s2 = fromPosition - 1;
-
-                if (s1 === enPassant || s2 === enPassant) {
-                    let movement = selectedColor === WHITE ? toPosition - 8 : toPosition + 8;
-                    bitboards[opponentColor][PAWN] &= ~(1n << BigInt(movement)); // Remove a peça capturada
-                }
             }
         }
     }
@@ -393,7 +385,6 @@ function getPawnMoves() {
     const startRow = selectedColor === WHITE ? (fromPosition >= 48 && fromPosition <= 55) : (fromPosition >= 8 && fromPosition <= 15);
     const captureLeft = selectedColor === WHITE ? -7 : 7;
     const captureRight = selectedColor === WHITE ? -9 : 9;
-    const opponentColor = selectedColor === WHITE ? BLACK : WHITE;
 
     // Movimento de avanço simples
     let movement = fromPosition + advance;
@@ -418,20 +409,27 @@ function getPawnMoves() {
     }
 
     movement = fromPosition + captureRight;
+    // Verifica se a peça adversária está na posição de captura
     if (opponentPieces & (1n << BigInt(movement))) {
         bitboardMoves |= 1n << BigInt(movement);
     }
 
     // Movimento de captura en passant
     if (enPassant !== null) {
-        let s1 = fromPosition + 1;
-        let s2 = fromPosition - 1;
 
+        // Posicoes laterais
+        let s1 = selectedColor === WHITE ? fromPosition - 1 : fromPosition + 1;
+        let s2 = selectedColor === WHITE ? fromPosition + 1 : fromPosition - 1;
+
+        // se a posição lateral s1 for igual a do peão marcado para captura en passant
         if (s1 === enPassant) {
+            // captura no vazio para a direita
             movement = fromPosition + captureRight;
             bitboardMoves |= 1n << BigInt(movement);
         }
+        // se a posição lateral s2 for igual a do peão marcado para captura en passant
         else if (s2 === enPassant) {
+            // captura no vazio para a esquerda
             movement = fromPosition + captureLeft;
             bitboardMoves |= 1n << BigInt(movement);
         }
