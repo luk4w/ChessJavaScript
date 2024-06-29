@@ -24,14 +24,14 @@ const WHITE = 0, BLACK = 1;
 
          a b c d e f g h
 
-    8    0 0 0 0 0 0 0 0
-    7    0 0 0 0 0 0 0 0
-    6    0 0 0 0 0 0 0 0
-    5    0 0 0 0 0 0 0 0
-    4    0 0 0 0 0 0 0 0
-    3    0 0 0 0 0 0 0 0
-    2    1 1 1 1 1 1 1 1
     1    0 0 0 0 0 0 0 0
+    2    1 1 1 1 1 1 1 1
+    3    0 0 0 0 0 0 0 0
+    4    0 0 0 0 0 0 0 0
+    5    0 0 0 0 0 0 0 0
+    6    0 0 0 0 0 0 0 0
+    7    0 0 0 0 0 0 0 0
+    8    0 0 0 0 0 0 0 0
 
     BIN:
     00000000 11111111 00000000 00000000 00000000 00000000 00000000 00000000
@@ -42,14 +42,14 @@ const WHITE = 0, BLACK = 1;
     Exemplo de bitboard para os peões pretos:
 
 
-    MENOS SIGNIFICATIVO ->  0 0 0 0 0 0 0 0 
+    MAIS SIGNIFICATIVO ->   0 0 0 0 0 0 0 0 
+                            0 0 0 0 0 0 0 0
+                            0 0 0 0 0 0 0 0
+                            0 0 0 0 0 0 0 0
+                            0 0 0 0 0 0 0 0
+                            0 0 0 0 0 0 0 0
                             1 1 1 1 1 1 1 1
-                            0 0 0 0 0 0 0 0
-                            0 0 0 0 0 0 0 0
-                            0 0 0 0 0 0 0 0
-                            0 0 0 0 0 0 0 0
-                            0 0 0 0 0 0 0 0
-                            0 0 0 0 0 0 0 0  <- MAIS SIGNIFICATIVO
+                            0 0 0 0 0 0 0 0  <- MENOS SIGNIFICATIVO
 
     BIN:
     00000000 00000000 00000000 00000000 00000000 00000000 11111111 00000000
@@ -69,7 +69,7 @@ let bitboards = [
 
 let ALL_PIECES_BLACK = 0n;
 let ALL_PIECES_WHITE = 0n;
-let avalaibleMoves = 0n;
+let availableMoves = 0n;
 
 let selectedPiece = null;
 let selectedColor = null;
@@ -116,33 +116,33 @@ function movePiece() {
     
         @FROM 8 (posição)
     
-             a b c d e f g h
+             h g f e d c b a
     
-        8    0 0 0 0 0 0 0 0
-        7    0 0 0 0 0 0 0 0
-        6    0 0 0 0 0 0 0 0
-        5    0 0 0 0 0 0 0 0
-        4    0 0 0 0 0 0 0 0
-        3    0 0 0 0 0 0 0 0
-        2    0 0 0 0 0 0 0 1
         1    0 0 0 0 0 0 0 0
+        2    1 0 0 0 0 0 0 0
+        3    0 0 0 0 0 0 0 0
+        4    0 0 0 0 0 0 0 0
+        5    0 0 0 0 0 0 0 0
+        6    0 0 0 0 0 0 0 0
+        7    0 0 0 0 0 0 0 0
+        8    0 0 0 0 0 0 0 0
     
     
         @BITBOARD_PAWN_WHITE
     
-             a b c d e f g h
+             h g f e d c b a
     
-        8    0 0 0 0 0 0 0 0
-        7    0 0 0 0 0 0 0 0
-        6    0 0 0 0 0 0 0 0
-        5    0 0 0 0 0 0 0 0
-        4    0 0 0 0 0 0 0 0
-        3    0 0 0 0 0 0 0 0
-        2    1 1 1 1 1 1 1 1
         1    0 0 0 0 0 0 0 0
+        2    1 1 1 1 1 1 1 1
+        3    0 0 0 0 0 0 0 0
+        4    0 0 0 0 0 0 0 0
+        5    0 0 0 0 0 0 0 0
+        6    0 0 0 0 0 0 0 0
+        7    0 0 0 0 0 0 0 0
+        8    0 0 0 0 0 0 0 0
     
                                  bitboards[0][0]:      00000000 11111111 00000000 00000000 00000000 00000000 00000000 00000000 
-                                            from:      8
+                                            from:      8 (h2)
     
         @DESLOCAMENTO_A_ESQUERDA (Conversão da posição "from" para uma mascara de bits)
                               1n << BigInt(from):      00000000 10000000 00000000 00000000 00000000 00000000 00000000 00000000 
@@ -157,31 +157,31 @@ function movePiece() {
 
         @COMPORTAMENTO_DE_MEMORIA_PARA_ADICIONAR_PECA
     
-        @TO 16 (posição)
+        @TO 16 (h3)
     
-             a b c d e f g h
+             h g f e d c b a
     
-        8    0 0 0 0 0 0 0 0
-        7    0 0 0 0 0 0 0 0
-        6    0 0 0 0 0 0 0 0
-        5    0 0 0 0 0 0 0 0
-        4    0 0 0 0 0 0 0 0
-        3    0 0 0 0 0 0 0 1
-        2    0 0 0 0 0 0 0 0
         1    0 0 0 0 0 0 0 0
+        2    0 0 0 0 0 0 0 0
+        3    1 0 0 0 0 0 0 0
+        4    0 0 0 0 0 0 0 0
+        5    0 0 0 0 0 0 0 0
+        6    0 0 0 0 0 0 0 0
+        7    0 0 0 0 0 0 0 0
+        8    0 0 0 0 0 0 0 0
     
         @BITBOARD_PAWN_WHITE_POSICAO_8_REMOVIDA
     
-             a b c d e f g h
+             h g f e d c b a
     
-        8    0 0 0 0 0 0 0 0
-        7    0 0 0 0 0 0 0 0
-        6    0 0 0 0 0 0 0 0
-        5    0 0 0 0 0 0 0 0
-        4    0 0 0 0 0 0 0 0
-        3    0 0 0 0 0 0 0 0
-        2    1 1 1 1 1 1 1 0
         1    0 0 0 0 0 0 0 0
+        2    0 1 1 1 1 1 1 1
+        3    0 0 0 0 0 0 0 0
+        4    0 0 0 0 0 0 0 0
+        5    0 0 0 0 0 0 0 0
+        6    0 0 0 0 0 0 0 0
+        7    0 0 0 0 0 0 0 0
+        8    0 0 0 0 0 0 0 0
 
         @DESLOCAMENTO_A_ESQUERDA (Conversão da posição "to" para uma mascara de bits)
                              1n << BigInt(to):         00000000 00000000 10000000 00000000 00000000 00000000 00000000 00000000
@@ -192,7 +192,7 @@ function movePiece() {
     
     */
 
-    if (avalaibleMoves & (1n << BigInt(toPosition))) {
+    if (availableMoves & (1n << BigInt(toPosition))) {
 
         // Remove a posição original da peça
         bitboards[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
@@ -295,7 +295,7 @@ function updatePiecesOnBoard() {
             // Iteração de cada bit do bitboard
             for (let i = 0; i < 64; i++) {
                 if (bitboard & (1n << BigInt(i))) {
-                    addPieceToCell(i, piece, color); // Adiciona a peça ao tabuleiro
+                    addPieceToBoard(i, piece, color); // Adiciona a peça ao tabuleiro
                 }
             }
         }
@@ -303,18 +303,18 @@ function updatePiecesOnBoard() {
     updateAllPieces();
 }
 
-// Função para adicionar uma peça na célula
-function addPieceToCell(index, piece, color) {
-    const boardElement = document.getElementById("chessboard");
-    const cell = boardElement.querySelector(`[data-index="${index}"]`);
+// Função para adicionar uma peça no tabuleiro
+function addPieceToBoard(index, piece, color) {
+    const boardElement = document.getElementById("chessboard"); // Obtem o tabuleiro
+    const square = boardElement.querySelector(`[data-index="${index}"]`); // Obtem a casa do tabuleiro
 
-    // Remove qualquer peça existente na célula
-    cell.innerHTML = "";
+    // Remove qualquer peça existente no quadrado
+    square.innerHTML = "";
 
-    // Cria o elemento da peça
+    // Cria o elemento para inserir a peça
     const pieceDiv = document.createElement("div");
     pieceDiv.className = `piece ${pieceToChar(piece, color)}`;
-    cell.appendChild(pieceDiv);
+    square.appendChild(pieceDiv); // Adiciona a peça no quadrado
 }
 
 
@@ -339,22 +339,22 @@ function handleCellClick(event) {
         // Verifica os movimentos possíveis para a peça selecionada
         switch (selectedPiece) {
             case PAWN:
-                avalaibleMoves = getPawnMoves();
+                availableMoves = getPawnMoves();
                 break;
             case ROOK:
-                avalaibleMoves = getRookMoves();
+                availableMoves = getRookMoves();
                 break;
             case KNIGHT:
-                avalaibleMoves = ~0n; // Implementação para teste
+                availableMoves = getKnightMoves();
                 break;
             case BISHOP:
-                avalaibleMoves = ~0n; // Implementação para teste
+                availableMoves = ~0n; // Implementação para teste
                 break;
             case QUEEN:
-                avalaibleMoves = ~0n; // Implementação para teste
+                availableMoves = ~0n; // Implementação para teste
                 break;
             case KING:
-                avalaibleMoves = ~0n; // Implementação para teste
+                availableMoves = ~0n; // Implementação para teste
                 break;
             default:
                 console.log("Peça não implementada");
@@ -371,7 +371,7 @@ function handleCellClick(event) {
         fromPosition = null;
         selectedColor = null;
         toPosition = null;
-        avalaibleMoves = 0n;
+        availableMoves = 0n;
 
         document.querySelectorAll(".selected").forEach(cell => cell.classList.remove("selected")); // Remove a marcação do quadrado selecionado
         renderBoard(); // Renderiza as novas posições das peças
@@ -445,61 +445,105 @@ function getPawnMoves() {
 }
 
 function getRookMoves() {
-
     let bitboardMoves = 0n;
     const OPPONENT_COLOR = selectedColor === WHITE ? ALL_PIECES_BLACK : ALL_PIECES_WHITE;
     const OWN_PIECES = selectedColor === WHITE ? ALL_PIECES_WHITE : ALL_PIECES_BLACK;
 
-    let movement = fromPosition; // Reseta a posição
-    // movement % 8 = 0 (primeira coluna)
-    while (movement % 8 !== 0) {
-        movement--; // Movimento para a esquerda
-        if (OWN_PIECES & (1n << BigInt(movement))) { // Verifica se a peça é própria
-            break;
-        }
-        bitboardMoves |= 1n << BigInt(movement); // Adiciona a posição ao bitboard de movimentos
-        if (OPPONENT_COLOR & (1n << BigInt(movement))) { // Verifica se a peça é do oponente
-            break;
-        }
+    // Máscaras para as bordas do tabuleiro
+    const notAFile = 0xFEFEFEFEFEFEFEFEn; // Máscara para eliminar a coluna A
+    const notHFile = 0x7F7F7F7F7F7F7F7Fn; // Máscara para eliminar a coluna H
+
+    /**
+     
+    // const notAFile = 0xFEFEFEFEFEFEFEFE
+    // BIN: 11111110 11111110 11111110 11111110 11111110 11111110 1111111 011111110
+
+      (perspectiva)
+           \/
+
+        hgfedcba
+
+        11111110   1
+        11111110   2
+        11111110   3
+        11111110   4
+        11111110   5
+        11111110   6
+        11111110   7
+        11111110   8
+
+    // const notHFile = 0x7F7F7F7F7F7F7F7Fn;
+    // BIN: 01111111 01111111 01111111 01111111 01111111 01111111 01111111 01111111 
+
+    */
+
+
+    let movement;
+
+    // Movimentos para a esquerda
+    movement = 1n << BigInt(fromPosition);
+    while (movement & notAFile) {
+        movement >>= 1n;
+        if (movement & OWN_PIECES) break;
+        bitboardMoves |= movement;
+        if (movement & OPPONENT_COLOR) break;
     }
 
-    movement = fromPosition;
-    // movement % 8 = 7 (ultima coluna)
-    while (movement % 8 !== 7) {
-        movement++; // Movimento para a direita
-
-        if (OWN_PIECES & (1n << BigInt(movement))) {
-            break;
-        }
-        bitboardMoves |= 1n << BigInt(movement);
-        if (OPPONENT_COLOR & (1n << BigInt(movement))) {
-            break;
-        }
+    // Movimentos para a direita
+    movement = 1n << BigInt(fromPosition);
+    while (movement & notHFile) {
+        movement <<= 1n;
+        if (movement & OWN_PIECES) break;
+        bitboardMoves |= movement;
+        if (movement & OPPONENT_COLOR) break;
     }
 
-    movement = fromPosition;
-    // movement >= 8 (primeira linha)
-    while (movement >= 8) {
-        movement -= 8; // Movimento para cima
-        if (OWN_PIECES & (1n << BigInt(movement))) {
-            break;
-        }
-        bitboardMoves |= 1n << BigInt(movement);
-        if (OPPONENT_COLOR & (1n << BigInt(movement))) {
-            break;
-        }
+    // Movimentos para cima
+    movement = 1n << BigInt(fromPosition);
+    while (movement & 0x00FFFFFFFFFFFFFFn) { // Verifica se não está na primeira linha
+        movement <<= 8n;
+        if (movement & OWN_PIECES) break;
+        bitboardMoves |= movement;
+        if (movement & OPPONENT_COLOR) break;
     }
 
-    movement = fromPosition;
-    // movement <= 55 (ultima linha)
-    while (movement <= 55) {
-        movement += 8; // Movimento para baixo
-        if (OWN_PIECES & (1n << BigInt(movement))) {
-            break;
-        }
-        bitboardMoves |= 1n << BigInt(movement);
-        if (OPPONENT_COLOR & (1n << BigInt(movement))) {
-            break;
+    // Movimentos para baixo
+    movement = 1n << BigInt(fromPosition);
+    while (movement & 0xFFFFFFFFFFFFFF00n) { // Verifica se não está na última linha
+        movement >>= 8n;
+        if (movement & OWN_PIECES) break;
+        bitboardMoves |= movement;
+        if (movement & OPPONENT_COLOR) break;
+    }
+
+    return bitboardMoves;
+}
+
+function getKnightMoves() {
+    let bitboardMoves = 0n;
+    const OWN_PIECES = selectedColor === WHITE ? ALL_PIECES_WHITE : ALL_PIECES_BLACK;
+
+    // 16 + 1 para baixo e 1 para direita
+    // 16 - 1 para baixo e 1 para esquerda
+    // 8 + 2 para baixo e 2 para direita
+    // 8 - 2 para baixo e 2 para esquerda
+    // -8 + 2 para cima e 2 para direita
+    // -8 - 2 para cima e 2 para esquerda
+    // -16 + 1 para cima e 1 para direita
+    // -16 - 1 para cima e 1 para esquerda
+
+    const knightMoves = [17, 15, 10, 6, -6, -10, -15, -17];
+
+    for (let move of knightMoves) {
+        // Calcula a posição do movimento
+        let movement = fromPosition + move;
+        // Verificação de borda para evitar saidas do tabuleiro
+        if (movement >= 0 && movement < 64) {
+            if (Math.abs((fromPosition % 8) - (movement % 8)) <= 2) {
+                if (!(OWN_PIECES & (1n << BigInt(movement)))) {
+                    bitboardMoves |= 1n << BigInt(movement);
+                }
+            }
         }
     }
     return bitboardMoves;
