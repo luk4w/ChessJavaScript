@@ -22,7 +22,7 @@ const WHITE = 0, BLACK = 1;
 
     Exemplo de bitboard para os peões brancos:
 
-         a b c d e f g h
+         h g f e d c b a
 
     1    0 0 0 0 0 0 0 0
     2    1 1 1 1 1 1 1 1
@@ -101,7 +101,7 @@ let enPassant = null;
 
         hgfedcba
 
-        01111111   1
+        01B11111   1
         01111111   2
         01111111   3
         01111111   4
@@ -420,7 +420,7 @@ function handlesquareClick(event) {
                             availableMoves = getBishopMoves();
                             break;
                         case QUEEN:
-                            availableMoves = ~0n; // Implementação para teste
+                            availableMoves = getQueenMoves();
                             break;
                         case KING:
                             availableMoves = ~0n; // Implementação para teste
@@ -644,41 +644,62 @@ function getBishopMoves() {
     const OPPONENT_PIECES = selectedColor === WHITE ? allPiecesBlack : allPiecesWhite;
     const OWN_PIECES = selectedColor === WHITE ? allPiecesWhite : allPiecesBlack;
 
+    /**
+    
+    @BISPO_PRETO_EM_F3
+
+         h g f e d c b a
+
+    1    0 0 0 0 0 0 0 0
+    2    0 0 0 0 0 0 0 0
+    3    0 0 0 0 0 0 0 0
+    4    0 0 0 0 0 0 0 0
+    5    0 0 0 0 0 0 0 0
+    6    0 0 0 0 0 0 0 0
+    7    0 0 0 0 0 0 0 0
+    8    0 0 1 0 0 0 0 0
+
+    */
+
     let movement;
-    // Movimentos para a diagonal superior esquerda
+    // Movimentos para a diagonal superior esquerda do bitboard
     movement = 1n << BigInt(fromPosition);
-    while (movement & NOT_A_FILE && movement & NOT_1_RANK) {
+    while (movement & (NOT_H_FILE & NOT_1_RANK)) {
         movement <<= 9n; // deslocamento para diagonal superior esquerda
         if (movement & OWN_PIECES) break;
         bitboardMoves |= movement;
         if (movement & OPPONENT_PIECES) break;
     }
 
-    // Movimentos para a diagonal superior direita
+    // Movimentos para a diagonal superior direita do bitboard
     movement = 1n << BigInt(fromPosition);
-    while (movement & NOT_H_FILE && movement & NOT_1_RANK) {
-        movement <<= 7n; // deslocamento para diagonal superior direita
+    while (movement & (NOT_A_FILE & NOT_1_RANK)) {
+        movement <<= 7n; // deslocamento para diagonal superior direita 
         if (movement & OWN_PIECES) break;
         bitboardMoves |= movement;
         if (movement & OPPONENT_PIECES) break;
     }
 
-    // Movimentos para a diagonal inferior esquerda
+    // Movimentos para a diagonal inferior esquerda do bitboard
     movement = 1n << BigInt(fromPosition);
-    while (movement & NOT_A_FILE && movement & NOT_8_RANK) {
+    while (movement & (NOT_H_FILE & NOT_8_RANK)) {
         movement >>= 7n; // deslocamento para diagonal inferior esquerda
         if (movement & OWN_PIECES) break;
         bitboardMoves |= movement;
         if (movement & OPPONENT_PIECES) break;
     }
 
-    // Movimentos para a diagonal inferior direita
+    // Movimentos para a diagonal inferior direita do bitboard
     movement = 1n << BigInt(fromPosition);
-    while (movement & NOT_H_FILE && movement & NOT_8_RANK) {
+    while (movement & (NOT_A_FILE & NOT_8_RANK)) {
         movement >>= 9n; // deslocamento para diagonal inferior direita
         if (movement & OWN_PIECES) break;
         bitboardMoves |= movement;
         if (movement & OPPONENT_PIECES) break;
     }
     return bitboardMoves;
+}
+
+function getQueenMoves() {
+    return getRookMoves() | getBishopMoves();
 }
