@@ -285,7 +285,6 @@ function movePiece() {
 
             // Obtem as peças adversárias
             const ALL_PIECES = allPiecesWhite | allPiecesBlack;
-
             const CAPTURE_LEFT = selectedColor === WHITE ? fromPosition - 9 : fromPosition + 9;
             const CAPTURE_RIGHT = selectedColor === WHITE ? fromPosition - 7 : fromPosition + 7;
 
@@ -316,7 +315,7 @@ function movePiece() {
         }
     }
     else {
-        alert("Movimento inválido!");
+        alert("Invalid move!");
     }
 
 }
@@ -423,10 +422,10 @@ function handlesquareClick(event) {
                             availableMoves = getQueenMoves();
                             break;
                         case KING:
-                            availableMoves = ~0n; // Implementação para teste
+                            availableMoves = getKingMoves();
                             break;
                         default:
-                            console.log("Peça não implementada");
+                            console.log("Piece not found!");
                             break;
                     }
                     return;
@@ -640,6 +639,7 @@ function getKnightMoves() {
 }
 
 function getBishopMoves() {
+    
     let bitboardMoves = 0n;
     const OPPONENT_PIECES = selectedColor === WHITE ? allPiecesBlack : allPiecesWhite;
     const OWN_PIECES = selectedColor === WHITE ? allPiecesWhite : allPiecesBlack;
@@ -702,4 +702,25 @@ function getBishopMoves() {
 
 function getQueenMoves() {
     return getRookMoves() | getBishopMoves();
+}
+
+function getKingMoves() {
+
+    let bitboardMoves = 0n;
+    const OWN_PIECES = selectedColor === WHITE ? allPiecesWhite : allPiecesBlack;
+    const kingMoves = [1, -1, 8, -8, 7, -7, 9, -9];
+
+    for (let move of kingMoves) {
+        // Calcula a posição do movimento
+        let movement = fromPosition + move;
+        // Verificação de borda para evitar saidas do tabuleiro
+        if (movement >= 0 && movement < 64) {
+            if (Math.abs((fromPosition % 8) - (movement % 8)) <= 1) {
+                if (!(OWN_PIECES & (1n << BigInt(movement)))) {
+                    bitboardMoves |= 1n << BigInt(movement);
+                }
+            }
+        }
+    }
+    return bitboardMoves;
 }
