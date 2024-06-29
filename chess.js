@@ -67,16 +67,87 @@ let bitboards = [
     new Array(6).fill(0n)   // 6 tipos de peças pretas
 ];
 
-let ALL_PIECES_BLACK = 0n;
-let ALL_PIECES_WHITE = 0n;
+// Variáveis para as peças
+let allPiecesWhite = 0n;
+let allPiecesBlack = 0n;
 let availableMoves = 0n;
-
 let selectedPiece = null;
 let selectedColor = null;
 let fromPosition = null;
 let toPosition = null;
-
 let enPassant = null;
+
+/**
+        @MASCARAS_PARA_AS_BORDAS_DO_TABULEIRO
+
+        @const NOT_A_FILE
+        @HEX 0xFEFEFEFEFEFEFEFE
+        @BIN 11111110 11111110 11111110 11111110 11111110 11111110 1111111 011111110
+
+        hgfedcba
+
+        11111110   1
+        11111110   2
+        11111110   3
+        11111110   4
+        11111110   5
+        11111110   6
+        11111110   7
+        11111110   8
+
+        @const NOT_H_FILE
+        @HEX 0x7F7F7F7F7F7F7F7F
+        @BIN 01111111 01111111 01111111 01111111 01111111 01111111 01111111 01111111
+
+        hgfedcba
+
+        01111111   1
+        01111111   2
+        01111111   3
+        01111111   4
+        01111111   5
+        01111111   6
+        01111111   7
+        01111111   8
+
+        @const NOT_1_RANK
+        @HEX 0x00FFFFFFFFFFFFFF
+        @BIN 00000000 11111111 11111111 11111111 11111111 11111111 11111111 11111111
+
+        hgfedcba
+
+        00000000    1    
+        11111111    2
+        11111111    3
+        11111111    4
+        11111111    5
+        11111111    6
+        11111111    7
+        11111111    8
+
+
+        @const NOT_8_RANK
+        @HEX 0xFFFFFFFFFFFFFF00
+        @BIN 11111111 11111111 11111111 11111111 11111111 11111111 11111111 00000000
+
+        hgfedcba
+
+        11111111    1
+        11111111    2
+        11111111    3
+        11111111    4
+        11111111    5
+        11111111    6
+        11111111    7
+        00000000    8
+
+*/
+
+// Mascaras para as bordas do tabuleiro
+const NOT_A_FILE = 0xFEFEFEFEFEFEFEFEn; // Máscara para eliminar a coluna A
+const NOT_H_FILE = 0x7F7F7F7F7F7F7F7Fn; // Máscara para eliminar a coluna H
+const NOT_1_RANK = 0x00FFFFFFFFFFFFFFn; // Máscara para eliminar a linha 1
+const NOT_8_RANK = 0xFFFFFFFFFFFFFF00n; // Máscara para eliminar a linha 8
 
 // Inicializa o tabuleiro de xadrez com as posições iniciais das peças.
 function initializeBoard() {
@@ -102,11 +173,12 @@ function initializeBoard() {
 
 // Função para atualizar os bitboards ALL_PIECES
 function updateAllPieces() {
-    ALL_PIECES_BLACK = bitboards[BLACK][PAWN] | bitboards[BLACK][KNIGHT] | bitboards[BLACK][BISHOP] |
-        bitboards[BLACK][ROOK] | bitboards[BLACK][QUEEN] | bitboards[BLACK][KING];
 
-    ALL_PIECES_WHITE = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] |
+    allPiecesWhite = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] |
         bitboards[WHITE][ROOK] | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
+
+    allPiecesBlack = bitboards[BLACK][PAWN] | bitboards[BLACK][KNIGHT] | bitboards[BLACK][BISHOP] |
+        bitboards[BLACK][ROOK] | bitboards[BLACK][QUEEN] | bitboards[BLACK][KING];
 }
 
 /** 
@@ -212,7 +284,7 @@ function movePiece() {
         if (selectedPiece === PAWN) {
 
             // Obtem as peças adversárias
-            const ALL_PIECES = ALL_PIECES_WHITE | ALL_PIECES_BLACK;
+            const ALL_PIECES = allPiecesWhite | allPiecesBlack;
 
             const CAPTURE_LEFT = selectedColor === WHITE ? fromPosition - 9 : fromPosition + 9;
             const CAPTURE_RIGHT = selectedColor === WHITE ? fromPosition - 7 : fromPosition + 7;
@@ -345,7 +417,7 @@ function handlesquareClick(event) {
                             availableMoves = getKnightMoves();
                             break;
                         case BISHOP:
-                            availableMoves = ~0n; // Implementação para teste
+                            availableMoves = getBishopMoves();
                             break;
                         case QUEEN:
                             availableMoves = ~0n; // Implementação para teste
@@ -391,26 +463,26 @@ function getPawnMoves() {
     let bitboardMoves = 0n;
 
     // Variáveis comuns
-    const opponentPieces = selectedColor === WHITE ? ALL_PIECES_BLACK : ALL_PIECES_WHITE;
-    const ownPieces = selectedColor === WHITE ? ALL_PIECES_WHITE : ALL_PIECES_BLACK;
-    const advance = selectedColor === WHITE ? -8n : 8n;
-    const doubleAdvance = selectedColor === WHITE ? -16n : 16n;
-    const startRows = 0x00FF00000000FF00n;
+    const OPPONENT_PIECES = selectedColor === WHITE ? allPiecesBlack : allPiecesWhite;
+    const OWN_PIECES = selectedColor === WHITE ? allPiecesWhite : allPiecesBlack;
+    const ADVANCE = selectedColor === WHITE ? -8n : 8n;
+    const DOUBLE_ADVANCE = selectedColor === WHITE ? -16n : 16n;
+    const START_ROWS = 0x00FF00000000FF00n;
 
     // Movimento de avanço simples
-    let movement = 1n << (BigInt(fromPosition) + advance);
+    let movement = 1n << (BigInt(fromPosition) + ADVANCE);
     // Verifica se a casa está vazia
-    if (!(opponentPieces & movement || (ownPieces & movement))) {
+    if (!(OPPONENT_PIECES & movement || (OWN_PIECES & movement))) {
         bitboardMoves |= movement;
     }
 
     // Movimento de avanço duplo
-    movement = 1n << (BigInt(fromPosition) + doubleAdvance);
+    movement = 1n << (BigInt(fromPosition) + DOUBLE_ADVANCE);
     // Verifica se o peão está nas linhas iniciais
-    if (startRows & (1n << BigInt(fromPosition))) {
-        let middleSquare = 1n << (BigInt(fromPosition) + advance);
+    if (START_ROWS & (1n << BigInt(fromPosition))) {
+        let middleSquare = 1n << (BigInt(fromPosition) + ADVANCE);
         // Verifica se a casa intermediaria e final estão vazias
-        if (!(opponentPieces & middleSquare || ownPieces & middleSquare) && !(opponentPieces & movement || ownPieces & movement)) {
+        if (!(OPPONENT_PIECES & middleSquare || OWN_PIECES & middleSquare) && !(OPPONENT_PIECES & movement || OWN_PIECES & movement)) {
             bitboardMoves |= movement;
         }
     }
@@ -420,12 +492,12 @@ function getPawnMoves() {
     let captureRight = selectedColor === WHITE ? ((1n << BigInt(fromPosition)) << -7n) : ((1n << BigInt(fromPosition)) << 7n);
 
     // Verifica a captura para a esquerda
-    if (captureLeft & opponentPieces) {
+    if (captureLeft & OPPONENT_PIECES) {
         bitboardMoves |= captureLeft;
     }
 
     // Verifica a captura para a direita
-    if (captureRight & opponentPieces) {
+    if (captureRight & OPPONENT_PIECES) {
         bitboardMoves |= captureRight;
     }
 
@@ -452,87 +524,48 @@ function getPawnMoves() {
 function getRookMoves() {
 
     let bitboardMoves = 0n;
-    const OPPONENT_COLOR = selectedColor === WHITE ? ALL_PIECES_BLACK : ALL_PIECES_WHITE;
-    const OWN_PIECES = selectedColor === WHITE ? ALL_PIECES_WHITE : ALL_PIECES_BLACK;
-    // Mascaras para as bordas do tabuleiro
-    const NOT_A_FILE = 0xFEFEFEFEFEFEFEFEn; // Máscara para eliminar a coluna A
-    const NOT_H_FILE = 0x7F7F7F7F7F7F7F7Fn; // Máscara para eliminar a coluna H
-    const NOT_1_RANK = 0x00FFFFFFFFFFFFFFn; // Máscara para eliminar a linha 1
-    const NOT_8_RANK = 0xFFFFFFFFFFFFFF00n; // Máscara para eliminar a linha 8
+    const OPPONENT_PIECES = selectedColor === WHITE ? allPiecesBlack : allPiecesWhite;
+    const OWN_PIECES = selectedColor === WHITE ? allPiecesWhite : allPiecesBlack;
 
     /**
-
-        @MASCARAS_PARA_AS_BORDAS_DO_TABULEIRO
-
-        @const NOT_A_FILE
-        @HEX 0xFEFEFEFEFEFEFEFE
-        @BIN 11111110 11111110 11111110 11111110 11111110 11111110 1111111 011111110
-
-        hgfedcba
-
-        11111110   1
-        11111110   2
-        11111110   3
-        11111110   4
-        11111110   5
-        11111110   6
-        11111110   7
-        11111110   8
-
-        @const NOT_H_FILE
-        @HEX 0x7F7F7F7F7F7F7F7F
-        @BIN 01111111 01111111 01111111 01111111 01111111 01111111 01111111 01111111
-
-        hgfedcba
-
-        01111111   1
-        01111111   2
-        01111111   3
-        01111111   4
-        01111111   5
-        01111111   6
-        01111111   7
-        01111111   8
-
-        @EXEMPLO_DE_MOVIMENTO_TORRE_EM_H3
-
-        hgfedcba
-
-        00000000   1
-        00000000   2
-        10000000   3    => Rh3 (posição 16)
-        00000000   4
-        00000000   5
-        00000000   6
-        00000000   7
-        00000000   8
-
-        (1n << BigInt(16)) >>= 7n   (deslocar para direita perde valor)
-
-        hgfedcba
-
-        00000000   1                                                    
-        00000000   2
-        00000001   3    => Ra3 (posição 23)
-        00000000   4
-        00000000   5
-        00000000   6
-        00000000   7
-        00000000   8
-
-        (1n << BigInt(23)) <<= 1n   (deslocar para esquerda ganha valor)
-
-        hgfedcba
-
-        00000000   1
-        00000000   2
-        00000010   3    => Rf3 (posição 22)
-        00000000   4
-        00000000   5
-        00000000   6
-        00000000   7
-        00000000   8
-
+            @EXEMPLO_DE_MOVIMENTO_TORRE_EM_H3
+    
+            hgfedcba
+    
+            00000000   1
+            00000000   2
+            10000000   3    => Rh3 (posição 16)
+            00000000   4
+            00000000   5
+            00000000   6
+            00000000   7
+            00000000   8
+    
+            (1n << BigInt(16)) >>= 7n
+    
+            hgfedcba
+    
+            00000000   1                                                    
+            00000000   2
+            00000001   3    => Ra3 (posição 23)
+            00000000   4
+            00000000   5
+            00000000   6
+            00000000   7
+            00000000   8
+    
+            (1n << BigInt(23)) <<= 1n
+    
+            hgfedcba
+    
+            00000000   1
+            00000000   2
+            00000010   3    => Rf3 (posição 22)
+            00000000   4
+            00000000   5
+            00000000   6
+            00000000   7
+            00000000   8 
     */
 
     let movement;
@@ -543,7 +576,7 @@ function getRookMoves() {
         movement >>= 1n; // deslocamento para direita (diminui o valor binario)
         if (movement & OWN_PIECES) break;
         bitboardMoves |= movement;
-        if (movement & OPPONENT_COLOR) break;
+        if (movement & OPPONENT_PIECES) break;
     }
 
     // Movimentos para a direita
@@ -552,7 +585,7 @@ function getRookMoves() {
         movement <<= 1n; // deslocamento para esquerda (aumenta o valor binario)
         if (movement & OWN_PIECES) break;
         bitboardMoves |= movement;
-        if (movement & OPPONENT_COLOR) break;
+        if (movement & OPPONENT_PIECES) break;
     }
 
     // Movimentos para cima
@@ -561,7 +594,7 @@ function getRookMoves() {
         movement <<= 8n; // deslocamento para esquerda (aumenta o valor binario)
         if (movement & OWN_PIECES) break;
         bitboardMoves |= movement;
-        if (movement & OPPONENT_COLOR) break;
+        if (movement & OPPONENT_PIECES) break;
     }
 
     // Movimentos para baixo
@@ -570,7 +603,7 @@ function getRookMoves() {
         movement >>= 8n; // deslocamento para direita (diminui o valor binario)
         if (movement & OWN_PIECES) break;
         bitboardMoves |= movement;
-        if (movement & OPPONENT_COLOR) break;
+        if (movement & OPPONENT_PIECES) break;
     }
 
     return bitboardMoves;
@@ -578,7 +611,7 @@ function getRookMoves() {
 
 function getKnightMoves() {
     let bitboardMoves = 0n;
-    const OWN_PIECES = selectedColor === WHITE ? ALL_PIECES_WHITE : ALL_PIECES_BLACK;
+    const OWN_PIECES = selectedColor === WHITE ? allPiecesWhite : allPiecesBlack;
 
     // 16 + 1 para baixo e 1 para direita
     // 16 - 1 para baixo e 1 para esquerda
@@ -602,6 +635,50 @@ function getKnightMoves() {
                 }
             }
         }
+    }
+    return bitboardMoves;
+}
+
+function getBishopMoves() {
+    let bitboardMoves = 0n;
+    const OPPONENT_PIECES = selectedColor === WHITE ? allPiecesBlack : allPiecesWhite;
+    const OWN_PIECES = selectedColor === WHITE ? allPiecesWhite : allPiecesBlack;
+
+    let movement;
+    // Movimentos para a diagonal superior esquerda
+    movement = 1n << BigInt(fromPosition);
+    while (movement & NOT_A_FILE && movement & NOT_1_RANK) {
+        movement <<= 9n; // deslocamento para diagonal superior esquerda
+        if (movement & OWN_PIECES) break;
+        bitboardMoves |= movement;
+        if (movement & OPPONENT_PIECES) break;
+    }
+
+    // Movimentos para a diagonal superior direita
+    movement = 1n << BigInt(fromPosition);
+    while (movement & NOT_H_FILE && movement & NOT_1_RANK) {
+        movement <<= 7n; // deslocamento para diagonal superior direita
+        if (movement & OWN_PIECES) break;
+        bitboardMoves |= movement;
+        if (movement & OPPONENT_PIECES) break;
+    }
+
+    // Movimentos para a diagonal inferior esquerda
+    movement = 1n << BigInt(fromPosition);
+    while (movement & NOT_A_FILE && movement & NOT_8_RANK) {
+        movement >>= 7n; // deslocamento para diagonal inferior esquerda
+        if (movement & OWN_PIECES) break;
+        bitboardMoves |= movement;
+        if (movement & OPPONENT_PIECES) break;
+    }
+
+    // Movimentos para a diagonal inferior direita
+    movement = 1n << BigInt(fromPosition);
+    while (movement & NOT_H_FILE && movement & NOT_8_RANK) {
+        movement >>= 9n; // deslocamento para diagonal inferior direita
+        if (movement & OWN_PIECES) break;
+        bitboardMoves |= movement;
+        if (movement & OPPONENT_PIECES) break;
     }
     return bitboardMoves;
 }
