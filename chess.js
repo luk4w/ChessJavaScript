@@ -342,7 +342,7 @@ function handleCellClick(event) {
                 avalaibleMoves = getPawnMoves();
                 break;
             case ROOK:
-                avalaibleMoves = ~0n; // Implementação para teste
+                avalaibleMoves = getRookMoves();
                 break;
             case KNIGHT:
                 avalaibleMoves = ~0n; // Implementação para teste
@@ -441,5 +441,66 @@ function getPawnMoves() {
         }
     }
 
+    return bitboardMoves;
+}
+
+function getRookMoves() {
+
+    let bitboardMoves = 0n;
+    const OPPONENT_COLOR = selectedColor === WHITE ? ALL_PIECES_BLACK : ALL_PIECES_WHITE;
+    const OWN_PIECES = selectedColor === WHITE ? ALL_PIECES_WHITE : ALL_PIECES_BLACK;
+
+    let movement = fromPosition; // Reseta a posição
+    // movement % 8 = 0 (primeira coluna)
+    while (movement % 8 !== 0) {
+        movement--; // Movimento para a esquerda
+        if (OWN_PIECES & (1n << BigInt(movement))) { // Verifica se a peça é própria
+            break;
+        }
+        bitboardMoves |= 1n << BigInt(movement); // Adiciona a posição ao bitboard de movimentos
+        if (OPPONENT_COLOR & (1n << BigInt(movement))) { // Verifica se a peça é do oponente
+            break;
+        }
+    }
+
+    movement = fromPosition;
+    // movement % 8 = 7 (ultima coluna)
+    while (movement % 8 !== 7) {
+        movement++; // Movimento para a direita
+
+        if (OWN_PIECES & (1n << BigInt(movement))) {
+            break;
+        }
+        bitboardMoves |= 1n << BigInt(movement);
+        if (OPPONENT_COLOR & (1n << BigInt(movement))) {
+            break;
+        }
+    }
+
+    movement = fromPosition;
+    // movement >= 8 (primeira linha)
+    while (movement >= 8) {
+        movement -= 8; // Movimento para cima
+        if (OWN_PIECES & (1n << BigInt(movement))) {
+            break;
+        }
+        bitboardMoves |= 1n << BigInt(movement);
+        if (OPPONENT_COLOR & (1n << BigInt(movement))) {
+            break;
+        }
+    }
+
+    movement = fromPosition;
+    // movement <= 55 (ultima linha)
+    while (movement <= 55) {
+        movement += 8; // Movimento para baixo
+        if (OWN_PIECES & (1n << BigInt(movement))) {
+            break;
+        }
+        bitboardMoves |= 1n << BigInt(movement);
+        if (OPPONENT_COLOR & (1n << BigInt(movement))) {
+            break;
+        }
+    }
     return bitboardMoves;
 }
