@@ -265,6 +265,9 @@ function movePiece() {
 
     if (availableMoves & (1n << BigInt(toPosition))) {
 
+        // Salva o estado atual do bitboard
+        const savedBitboard = bitboards[selectedColor][selectedPiece];
+
         // Remove a posição original da peça
         bitboards[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
 
@@ -312,6 +315,12 @@ function movePiece() {
             else {
                 enPassant = null;
             }
+        }
+        
+        if (isIllegalMove()) {
+            // recupera o estado anterior do bitboard
+            bitboards[selectedColor][selectedPiece] = savedBitboard;
+            alert("Illegal move!");
         }
     }
     else {
@@ -407,22 +416,22 @@ function handlesquareClick(event) {
                     // Verifica os movimentos possíveis para a peça selecionada
                     switch (selectedPiece) {
                         case PAWN:
-                            availableMoves = getPawnMoves();
+                            availableMoves = getPawnMoves(fromPosition, selectedColor);
                             return;
                         case ROOK:
-                            availableMoves = getRookMoves();
+                            availableMoves = getRookMoves(fromPosition, selectedColor);
                             break;
                         case KNIGHT:
-                            availableMoves = getKnightMoves();
+                            availableMoves = getKnightMoves(fromPosition, selectedColor);
                             break;
                         case BISHOP:
-                            availableMoves = getBishopMoves();
+                            availableMoves = getBishopMoves(fromPosition, selectedColor);
                             break;
                         case QUEEN:
-                            availableMoves = getQueenMoves();
+                            availableMoves = getQueenMoves(fromPosition, selectedColor);
                             break;
                         case KING:
-                            availableMoves = getKingMoves();
+                            availableMoves = getKingMoves(fromPosition, selectedColor);
                             break;
                         default:
                             console.log("Piece not found!");
@@ -457,29 +466,29 @@ initializeBoard();
 renderBoard();
 
 
-function getPawnMoves() {
+function getPawnMoves(from, color) {
 
     let bitboardMoves = 0n;
 
     // Variáveis comuns
-    const OPPONENT_PIECES = selectedColor === WHITE ? allPiecesBlack : allPiecesWhite;
-    const OWN_PIECES = selectedColor === WHITE ? allPiecesWhite : allPiecesBlack;
-    const ADVANCE = selectedColor === WHITE ? -8n : 8n;
-    const DOUBLE_ADVANCE = selectedColor === WHITE ? -16n : 16n;
+    const OPPONENT_PIECES = color === WHITE ? allPiecesBlack : allPiecesWhite;
+    const OWN_PIECES = color === WHITE ? allPiecesWhite : allPiecesBlack;
+    const ADVANCE = color === WHITE ? -8n : 8n;
+    const DOUBLE_ADVANCE = color === WHITE ? -16n : 16n;
     const START_ROWS = 0x00FF00000000FF00n;
 
     // Movimento de avanço simples
-    let movement = 1n << (BigInt(fromPosition) + ADVANCE);
+    let movement = 1n << (BigInt(from) + ADVANCE);
     // Verifica se a casa está vazia
     if (!(OPPONENT_PIECES & movement || (OWN_PIECES & movement))) {
         bitboardMoves |= movement;
     }
 
     // Movimento de avanço duplo
-    movement = 1n << (BigInt(fromPosition) + DOUBLE_ADVANCE);
+    movement = 1n << (BigInt(from) + DOUBLE_ADVANCE);
     // Verifica se o peão está nas linhas iniciais
-    if (START_ROWS & (1n << BigInt(fromPosition))) {
-        let middleSquare = 1n << (BigInt(fromPosition) + ADVANCE);
+    if (START_ROWS & (1n << BigInt(from))) {
+        let middleSquare = 1n << (BigInt(from) + ADVANCE);
         // Verifica se a casa intermediaria e final estão vazias
         if (!(OPPONENT_PIECES & middleSquare || OWN_PIECES & middleSquare) && !(OPPONENT_PIECES & movement || OWN_PIECES & movement)) {
             bitboardMoves |= movement;
@@ -487,8 +496,8 @@ function getPawnMoves() {
     }
 
     // Movimentos de captura
-    let captureLeft = selectedColor === WHITE ? ((1n << BigInt(fromPosition)) << -9n) : ((1n << BigInt(fromPosition)) << 9n);
-    let captureRight = selectedColor === WHITE ? ((1n << BigInt(fromPosition)) << -7n) : ((1n << BigInt(fromPosition)) << 7n);
+    let captureLeft = color === WHITE ? ((1n << BigInt(from)) << -9n) : ((1n << BigInt(from)) << 9n);
+    let captureRight = color === WHITE ? ((1n << BigInt(from)) << -7n) : ((1n << BigInt(from)) << 7n);
 
     // Verifica a captura para a esquerda
     if (captureLeft & OPPONENT_PIECES) {
@@ -504,8 +513,8 @@ function getPawnMoves() {
     if (enPassant !== null) {
 
         // Posicoes laterais
-        let p1 = selectedColor === WHITE ? fromPosition - 1 : fromPosition + 1;
-        let p2 = selectedColor === WHITE ? fromPosition + 1 : fromPosition - 1;
+        let p1 = color === WHITE ? from - 1 : from + 1;
+        let p2 = color === WHITE ? from + 1 : from - 1;
 
         // se a posição lateral s1 for igual a do peão marcado para captura en passant
         if (p1 === enPassant) {
@@ -520,11 +529,11 @@ function getPawnMoves() {
     return bitboardMoves;
 }
 
-function getRookMoves() {
+function getRookMoves(from, color) {
 
     let bitboardMoves = 0n;
-    const OPPONENT_PIECES = selectedColor === WHITE ? allPiecesBlack : allPiecesWhite;
-    const OWN_PIECES = selectedColor === WHITE ? allPiecesWhite : allPiecesBlack;
+    const OPPONENT_PIECES = color === WHITE ? allPiecesBlack : allPiecesWhite;
+    const OWN_PIECES = color === WHITE ? allPiecesWhite : allPiecesBlack;
 
     /**
             @EXEMPLO_DE_MOVIMENTO_TORRE_EM_H3
@@ -570,7 +579,7 @@ function getRookMoves() {
     let movement;
 
     // Movimentos para a esquerda
-    movement = 1n << BigInt(fromPosition);
+    movement = 1n << BigInt(from);
     while (movement & NOT_A_FILE) {
         movement >>= 1n; // deslocamento para direita (diminui o valor binario)
         if (movement & OWN_PIECES) break;
@@ -579,7 +588,7 @@ function getRookMoves() {
     }
 
     // Movimentos para a direita
-    movement = 1n << BigInt(fromPosition);
+    movement = 1n << BigInt(from);
     while (movement & NOT_H_FILE) {
         movement <<= 1n; // deslocamento para esquerda (aumenta o valor binario)
         if (movement & OWN_PIECES) break;
@@ -588,7 +597,7 @@ function getRookMoves() {
     }
 
     // Movimentos para cima
-    movement = 1n << BigInt(fromPosition);
+    movement = 1n << BigInt(from);
     while (movement & NOT_1_RANK) {
         movement <<= 8n; // deslocamento para esquerda (aumenta o valor binario)
         if (movement & OWN_PIECES) break;
@@ -597,7 +606,7 @@ function getRookMoves() {
     }
 
     // Movimentos para baixo
-    movement = 1n << BigInt(fromPosition);
+    movement = 1n << BigInt(from);
     while (movement & NOT_8_RANK) {
         movement >>= 8n; // deslocamento para direita (diminui o valor binario)
         if (movement & OWN_PIECES) break;
@@ -608,9 +617,9 @@ function getRookMoves() {
     return bitboardMoves;
 }
 
-function getKnightMoves() {
+function getKnightMoves(from, color) {
     let bitboardMoves = 0n;
-    const OWN_PIECES = selectedColor === WHITE ? allPiecesWhite : allPiecesBlack;
+    const OWN_PIECES = color === WHITE ? allPiecesWhite : allPiecesBlack;
 
     // 16 + 1 para baixo e 1 para direita
     // 16 - 1 para baixo e 1 para esquerda
@@ -625,10 +634,10 @@ function getKnightMoves() {
 
     for (let move of knightMoves) {
         // Calcula a posição do movimento
-        let movement = fromPosition + move;
+        let movement = from + move;
         // Verificação de borda para evitar saidas do tabuleiro
         if (movement >= 0 && movement < 64) {
-            if (Math.abs((fromPosition % 8) - (movement % 8)) <= 2) {
+            if (Math.abs((from % 8) - (movement % 8)) <= 2) {
                 if (!(OWN_PIECES & (1n << BigInt(movement)))) {
                     bitboardMoves |= 1n << BigInt(movement);
                 }
@@ -638,11 +647,11 @@ function getKnightMoves() {
     return bitboardMoves;
 }
 
-function getBishopMoves() {
-    
+function getBishopMoves(from, color) {
+
     let bitboardMoves = 0n;
-    const OPPONENT_PIECES = selectedColor === WHITE ? allPiecesBlack : allPiecesWhite;
-    const OWN_PIECES = selectedColor === WHITE ? allPiecesWhite : allPiecesBlack;
+    const OPPONENT_PIECES = color === WHITE ? allPiecesBlack : allPiecesWhite;
+    const OWN_PIECES = color === WHITE ? allPiecesWhite : allPiecesBlack;
 
     /**
     
@@ -663,7 +672,7 @@ function getBishopMoves() {
 
     let movement;
     // Movimentos para a diagonal superior esquerda do bitboard
-    movement = 1n << BigInt(fromPosition);
+    movement = 1n << BigInt(from);
     while (movement & (NOT_H_FILE & NOT_1_RANK)) {
         movement <<= 9n; // deslocamento para diagonal superior esquerda
         if (movement & OWN_PIECES) break;
@@ -672,7 +681,7 @@ function getBishopMoves() {
     }
 
     // Movimentos para a diagonal superior direita do bitboard
-    movement = 1n << BigInt(fromPosition);
+    movement = 1n << BigInt(from);
     while (movement & (NOT_A_FILE & NOT_1_RANK)) {
         movement <<= 7n; // deslocamento para diagonal superior direita 
         if (movement & OWN_PIECES) break;
@@ -681,7 +690,7 @@ function getBishopMoves() {
     }
 
     // Movimentos para a diagonal inferior esquerda do bitboard
-    movement = 1n << BigInt(fromPosition);
+    movement = 1n << BigInt(from);
     while (movement & (NOT_H_FILE & NOT_8_RANK)) {
         movement >>= 7n; // deslocamento para diagonal inferior esquerda
         if (movement & OWN_PIECES) break;
@@ -690,7 +699,7 @@ function getBishopMoves() {
     }
 
     // Movimentos para a diagonal inferior direita do bitboard
-    movement = 1n << BigInt(fromPosition);
+    movement = 1n << BigInt(from);
     while (movement & (NOT_A_FILE & NOT_8_RANK)) {
         movement >>= 9n; // deslocamento para diagonal inferior direita
         if (movement & OWN_PIECES) break;
@@ -700,22 +709,22 @@ function getBishopMoves() {
     return bitboardMoves;
 }
 
-function getQueenMoves() {
-    return getRookMoves() | getBishopMoves();
+function getQueenMoves(from, color) {
+    return getRookMoves(from, color) | getBishopMoves(from, color);
 }
 
-function getKingMoves() {
+function getKingMoves(from, color) {
 
     let bitboardMoves = 0n;
-    const OWN_PIECES = selectedColor === WHITE ? allPiecesWhite : allPiecesBlack;
+    const OWN_PIECES = color === WHITE ? allPiecesWhite : allPiecesBlack;
     const kingMoves = [1, -1, 8, -8, 7, -7, 9, -9];
 
     for (let move of kingMoves) {
         // Calcula a posição do movimento
-        let movement = fromPosition + move;
+        let movement = from + move;
         // Verificação de borda para evitar saidas do tabuleiro
         if (movement >= 0 && movement < 64) {
-            if (Math.abs((fromPosition % 8) - (movement % 8)) <= 1) {
+            if (Math.abs((from % 8) - (movement % 8)) <= 1) {
                 if (!(OWN_PIECES & (1n << BigInt(movement)))) {
                     bitboardMoves |= 1n << BigInt(movement);
                 }
@@ -723,4 +732,47 @@ function getKingMoves() {
         }
     }
     return bitboardMoves;
+}
+
+function getAllMoves(color) {
+    let bitboardMoves = 0n;
+    // Iteração para cada tipo de peça
+    for (let piece = 0; piece < 6; piece++) {
+        let bitboard = bitboards[color][piece];
+        // Iteração para cada bit no bitboard
+        for (let i = 0; i < 64; i++) {
+            if (bitboard & (1n << BigInt(i))) {
+                let pieceMoves = 0n;
+                switch (piece) {
+                    case PAWN:
+                        pieceMoves = getPawnMoves(i, color);
+                        break;
+                    case ROOK:
+                        pieceMoves = getRookMoves(i, color);
+                        break;
+                    case KNIGHT:
+                        pieceMoves = getKnightMoves(i, color);
+                        break;
+                    case BISHOP:
+                        pieceMoves = getBishopMoves(i, color);
+                        break;
+                    case QUEEN:
+                        pieceMoves = getQueenMoves(i, color);
+                        break;
+                    case KING:
+                        pieceMoves = getKingMoves(i, color);
+                        break;
+                }
+                bitboardMoves |= pieceMoves;
+            }
+        }
+    }
+    return bitboardMoves;
+}
+
+function isIllegalMove() {
+    // Força uma atualização simulada de todos bitboards
+    updateAllPieces();
+    const OPPONENT_COLOR = selectedColor === WHITE ? BLACK : WHITE;
+    return bitboards[selectedColor][KING] & getAllMoves(OPPONENT_COLOR);
 }
