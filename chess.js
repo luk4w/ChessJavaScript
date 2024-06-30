@@ -149,6 +149,12 @@ const NOT_H_FILE = 0x7F7F7F7F7F7F7F7Fn; // Máscara para eliminar a coluna H
 const NOT_1_RANK = 0x00FFFFFFFFFFFFFFn; // Máscara para eliminar a linha 1
 const NOT_8_RANK = 0xFFFFFFFFFFFFFF00n; // Máscara para eliminar a linha 8
 
+// Efeitos sonoros
+const MOVE_SOUND = new Audio("./sounds/move.mp3");
+const CAPTURE_SOUND = new Audio("./sounds/capture.mp3");
+const FAILURE_SOUND = new Audio("./sounds/failure.mp3");
+const CHECK_SOUND = new Audio("./sounds/check.mp3");
+
 // Inicializa o tabuleiro de xadrez com as posições iniciais das peças.
 function initializeBoard() {
     // Peões
@@ -281,20 +287,27 @@ function movePiece() {
 
         // Iteração nas bitboards adversárias, para verificar se a peça adversária foi capturada
         for (let opponentPiece = 0; opponentPiece < 6; opponentPiece++) {
-            bitboards[OPPONENT_COLOR][opponentPiece] &= ~toMask; // Remove a peça adversária
+
+            if (bitboards[OPPONENT_COLOR][opponentPiece] & toMask) {
+                // Remove a peça adversária
+                bitboards[OPPONENT_COLOR][opponentPiece] &= ~toMask;
+                CAPTURE_SOUND.play();
+            }
         }
 
         if (selectedPiece === PAWN) {
 
             // Obtem as peças adversárias
-            const ALL_PIECES = allPiecesWhite | allPiecesBlack;
+            const OPPONENT_PIECES = selectedColor === WHITE ? allPiecesBlack : allPiecesWhite;
             const CAPTURE_LEFT = selectedColor === WHITE ? fromPosition - 9 : fromPosition + 9;
             const CAPTURE_RIGHT = selectedColor === WHITE ? fromPosition - 7 : fromPosition + 7;
 
-
-            if ((enPassant !== null) && (toPosition === CAPTURE_LEFT && !(ALL_PIECES & (1n << BigInt(CAPTURE_LEFT)))) ||
-                (toPosition === CAPTURE_RIGHT && !(ALL_PIECES & (1n << BigInt(CAPTURE_RIGHT))))) {
-                bitboards[OPPONENT_COLOR][PAWN] &= ~(1n << BigInt(enPassant)); // remove peão marcado para captura en passant
+            // Verifica se a captura en passant foi realizada
+            if ((enPassant !== null) && (toPosition === CAPTURE_LEFT && !(OPPONENT_PIECES & (1n << BigInt(CAPTURE_LEFT)))) ||
+                (toPosition === CAPTURE_RIGHT && !(OPPONENT_PIECES & (1n << BigInt(CAPTURE_RIGHT))))) {
+                // remove peão marcado para captura en passant
+                bitboards[OPPONENT_COLOR][PAWN] &= ~(1n << BigInt(enPassant));
+                CAPTURE_SOUND.play();
             }
 
             // Verifica se o peão avançou duas casas em seu primeiro movimento
@@ -316,16 +329,20 @@ function movePiece() {
                 enPassant = null;
             }
         }
-        
+
         if (isIllegalMove()) {
             // recupera o estado anterior do bitboard
             bitboards[selectedColor][selectedPiece] = savedBitboard;
-            alert("Illegal move!");
+            FAILURE_SOUND.play();
+            return;
         }
+
+        MOVE_SOUND.play();
     }
     else {
-        alert("Invalid move!");
+        FAILURE_SOUND.play();
     }
+
 
 }
 
