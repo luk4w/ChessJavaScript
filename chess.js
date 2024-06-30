@@ -277,7 +277,7 @@ function movePiece() {
             bitboards[BLACK].map(bitboard => BigInt(bitboard))  // Copia o array de peças pretas
         ];
 
-        // Remove a posição original da peça
+        // Remove a posição de origem da peça
         savedState[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
 
         // Mascara de bits para a nova posição da peça
@@ -302,6 +302,7 @@ function movePiece() {
                     updateAllPieces(bitboards);
                     return;
                 }
+                // Efeito sonoro de captura
                 CAPTURE_SOUND.play();
             }
         }
@@ -316,8 +317,9 @@ function movePiece() {
             // Verifica se o peão foi capturado pelo movimento en passant
             if ((enPassant !== null) && (toPosition === CAPTURE_LEFT || toPosition === CAPTURE_RIGHT)
                 && (OPPONENT_PAWNS & (1n << BigInt(enPassant)))) {
-                // remove peão marcado para captura en passant
+                // remove o peão capturado
                 savedState[OPPONENT_COLOR][PAWN] &= ~(1n << BigInt(enPassant));
+                // Efeito sonoro de captura
                 CAPTURE_SOUND.play();
             }
 
@@ -364,6 +366,7 @@ function movePiece() {
     }
 }
 
+// função auxiliar para transformar a peça em elemento HTML
 function pieceToChar(piece, color) {
     const pieces = ["pawn", "knight", "bishop", "rook", "queen", "king"];
     return (color === WHITE ? "white_" : "black_") + pieces[piece];
