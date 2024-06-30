@@ -178,7 +178,7 @@ function initializeBoard() {
 }
 
 // Função para atualizar os bitboards ALL_PIECES
-function updateAllPieces() {
+function updateAllPieces(bitboards) {
 
     allPiecesWhite = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] |
         bitboards[WHITE][ROOK] | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
@@ -272,15 +272,18 @@ function movePiece() {
     if (availableMoves & (1n << BigInt(toPosition))) {
 
         // Salva o estado atual do bitboard
-        const savedBitboard = bitboards[selectedColor][selectedPiece];
+        let savedState = [
+            bitboards[WHITE].map(bitboard => BigInt(bitboard)), // Copia o array de peças brancas
+            bitboards[BLACK].map(bitboard => BigInt(bitboard))  // Copia o array de peças pretas
+        ];
 
         // Remove a posição original da peça
-        bitboards[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
+        savedState[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
 
         // Mascara de bits para a nova posição da peça
         let toMask = 1n << BigInt(toPosition);
         // Adiciona a nova posição da peça
-        bitboards[selectedColor][selectedPiece] |= toMask;
+        savedState[selectedColor][selectedPiece] |= toMask;
 
         // Obtem a cor do oponente
         const OPPONENT_COLOR = selectedColor === WHITE ? BLACK : WHITE;
@@ -288,9 +291,17 @@ function movePiece() {
         // Iteração nas bitboards adversárias, para verificar se a peça adversária foi capturada
         for (let opponentPiece = 0; opponentPiece < 6; opponentPiece++) {
 
-            if (bitboards[OPPONENT_COLOR][opponentPiece] & toMask) {
+            if (savedState[OPPONENT_COLOR][opponentPiece] & toMask) {
                 // Remove a peça adversária
-                bitboards[OPPONENT_COLOR][opponentPiece] &= ~toMask;
+                savedState[OPPONENT_COLOR][opponentPiece] &= ~toMask;
+
+                if (isIllegalMove(savedState)) {
+                    // Efeito sonoro de movimento inválido
+                    FAILURE_SOUND.play();
+                    // Volta no estado anterior das peças
+                    updateAllPieces(bitboards);
+                    return;
+                }
                 CAPTURE_SOUND.play();
             }
         }
@@ -298,52 +309,59 @@ function movePiece() {
         if (selectedPiece === PAWN) {
 
             // Obtem as peças adversárias
-            const OPPONENT_PIECES = selectedColor === WHITE ? allPiecesBlack : allPiecesWhite;
+            const OPPONENT_PAWNS = selectedColor === WHITE ? savedState[BLACK][PAWN] : savedState[WHITE][PAWN];
             const CAPTURE_LEFT = selectedColor === WHITE ? fromPosition - 9 : fromPosition + 9;
             const CAPTURE_RIGHT = selectedColor === WHITE ? fromPosition - 7 : fromPosition + 7;
 
-            // Verifica se a captura en passant foi realizada
-            if ((enPassant !== null) && (toPosition === CAPTURE_LEFT && !(OPPONENT_PIECES & (1n << BigInt(CAPTURE_LEFT)))) ||
-                (toPosition === CAPTURE_RIGHT && !(OPPONENT_PIECES & (1n << BigInt(CAPTURE_RIGHT))))) {
+            // Verifica se o peão foi capturado pelo movimento en passant
+            if ((enPassant !== null) && (toPosition === CAPTURE_LEFT || toPosition === CAPTURE_RIGHT)
+                && (OPPONENT_PAWNS & (1n << BigInt(enPassant)))) {
                 // remove peão marcado para captura en passant
-                bitboards[OPPONENT_COLOR][PAWN] &= ~(1n << BigInt(enPassant));
+                savedState[OPPONENT_COLOR][PAWN] &= ~(1n << BigInt(enPassant));
                 CAPTURE_SOUND.play();
             }
 
             // Verifica se o peão avançou duas casas em seu primeiro movimento
             if (Math.abs(fromPosition - toPosition) === 16) {
-                // Obtem os peões adversários
-                const OPPONENT_PAWNS = OPPONENT_COLOR === WHITE ? bitboards[WHITE][PAWN] : bitboards[BLACK][PAWN];
-                // Verifica se o peão adversário está na posição correta para captura en passant
-                if (OPPONENT_PAWNS & (1n << BigInt(toPosition - 1)) && toPosition > 24) {
-                    enPassant = toPosition; // marca o peão que pode ser capturado en passant (para direita ou esquerda)
+                // Verifica se existe um peão adversário do lado esquerdo ou direito
+                if ((OPPONENT_PAWNS & (1n << BigInt(toPosition - 1)) && toPosition > 24) ||
+                    (OPPONENT_PAWNS & (1n << BigInt(toPosition + 1)) && toPosition < 39)) {
+                    // marca o própio peão para ser capturado pelo movimento en passant
+                    enPassant = toPosition;
+                } else {
+                    // Desmarca o peão que pode ser capturado en passant
+                    enPassant = null;
                 }
-                else if (OPPONENT_PAWNS & (1n << BigInt(toPosition + 1)) && toPosition < 39) {
-                    enPassant = toPosition; // marca o peão que pode ser capturado en passant (para direita ou esquerda)
-                }
-                else {
-                    enPassant = null; // desmarca o peão que pode ser capturado en passant
-                }
-            }
-            else {
+            } else {
                 enPassant = null;
             }
         }
 
-        if (isIllegalMove()) {
-            // recupera o estado anterior do bitboard
-            bitboards[selectedColor][selectedPiece] = savedBitboard;
+        // Verifica se o movimento é ilegal
+        if (isIllegalMove(savedState)) {
+            // Efeito sonoro de movimento inválido
             FAILURE_SOUND.play();
+            // Volta no estado anterior das peças
+            updateAllPieces(bitboards);
             return;
         }
 
+        // Efeito sonoro de movimento
         MOVE_SOUND.play();
+
+        // Verifica se houve xeque no rei adversário
+        if (getAllMoves(savedState, selectedColor) & savedState[OPPONENT_COLOR][KING]) {
+            // Efeito sonoro de xeque
+            CHECK_SOUND.play();
+        }
+
+        // Atualiza os bitboards para o novo estado
+        bitboards = savedState;
     }
     else {
+        // Efeito sonoro de movimento inválido
         FAILURE_SOUND.play();
     }
-
-
 }
 
 function pieceToChar(piece, color) {
@@ -395,7 +413,7 @@ function updatePiecesOnBoard() {
             }
         }
     }
-    updateAllPieces();
+    updateAllPieces(bitboards);
 }
 
 // Função para adicionar uma peça no tabuleiro
@@ -673,9 +691,9 @@ function getBishopMoves(from, color) {
     /**
     
     @BISPO_PRETO_EM_F3
-
+ 
          h g f e d c b a
-
+ 
     1    0 0 0 0 0 0 0 0
     2    0 0 0 0 0 0 0 0
     3    0 0 0 0 0 0 0 0
@@ -684,7 +702,7 @@ function getBishopMoves(from, color) {
     6    0 0 0 0 0 0 0 0
     7    0 0 0 0 0 0 0 0
     8    0 0 1 0 0 0 0 0
-
+ 
     */
 
     let movement;
@@ -751,7 +769,7 @@ function getKingMoves(from, color) {
     return bitboardMoves;
 }
 
-function getAllMoves(color) {
+function getAllMoves(bitboards, color) {
     let bitboardMoves = 0n;
     // Iteração para cada tipo de peça
     for (let piece = 0; piece < 6; piece++) {
@@ -787,9 +805,8 @@ function getAllMoves(color) {
     return bitboardMoves;
 }
 
-function isIllegalMove() {
-    // Força uma atualização simulada de todos bitboards
-    updateAllPieces();
+function isIllegalMove(bitboards) {
+    updateAllPieces(bitboards);
     const OPPONENT_COLOR = selectedColor === WHITE ? BLACK : WHITE;
-    return bitboards[selectedColor][KING] & getAllMoves(OPPONENT_COLOR);
+    return bitboards[selectedColor][KING] & getAllMoves(bitboards, OPPONENT_COLOR);
 }
