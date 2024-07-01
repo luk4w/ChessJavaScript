@@ -217,9 +217,9 @@ function updateAllPieces(bitboards) {
     @COMPORTAMENTO_DE_MEMORIA_PARA_REMOVER_PECA
  
     @FROM 8 (h2)
- 
+
          a b c d e f g h
- 
+
     8    0 0 0 0 0 0 0 0
     7    0 0 0 0 0 0 0 0
     6    0 0 0 0 0 0 0 0
@@ -228,12 +228,12 @@ function updateAllPieces(bitboards) {
     3    0 0 0 0 0 0 0 0
     2    0 0 0 0 0 0 0 1
     1    0 0 0 0 0 0 0 0
- 
- 
+
+
     @BITBOARD_WHITE_PAWN
- 
+
          a b c d e f g h
- 
+
     8    0 0 0 0 0 0 0 0
     7    0 0 0 0 0 0 0 0
     6    0 0 0 0 0 0 0 0
@@ -242,27 +242,26 @@ function updateAllPieces(bitboards) {
     3    0 0 0 0 0 0 0 0
     2    1 1 1 1 1 1 1 1
     1    0 0 0 0 0 0 0 0
- 
+
                              bitboards[0][0]:      00000000 00000000 00000000 00000000 00000000 00000000 11111111 00000000 
                                         from:      8 (h2)
- 
+
     @DESLOCAMENTO_A_ESQUERDA (Conversão da posição "from" para uma mascara de bits)
                           1n << BigInt(from):      00000000 00000000 00000000 00000000 00000000 00000000 00000001 00000000 
- 
+    
     @NOT
                        ~(1n << BigInt(from)):      11111111 11111111 11111111 11111111 11111111 11111111 11111110 11111111
-    
+
     @AND
                              bitboards[0][0]:      00000000 00000000 00000000 00000000 00000000 00000000 11111111 00000000 
     bitboards[0][0] &= ~(1n << BigInt(from)):      00000000 00000000 00000000 00000000 00000000 00000000 11111110 00000000 
- 
 
     @COMPORTAMENTO_DE_MEMORIA_PARA_ADICIONAR_PECA
- 
+
     @TO 16 (h3)
- 
+
          a b c d e f g h
- 
+
     8    0 0 0 0 0 0 0 0
     7    0 0 0 0 0 0 0 0
     6    0 0 0 0 0 0 0 0
@@ -297,11 +296,12 @@ function movePiece() {
 
     if (availableMoves & (1n << BigInt(toPosition))) {
 
-        // Salva o estado atual do bitboard
+        // Salva o estado atual do tabuleiro
         let savedState = [
             bitboards[WHITE].map(bitboard => BigInt(bitboard)), // Copia o array de peças brancas
             bitboards[BLACK].map(bitboard => BigInt(bitboard))  // Copia o array de peças pretas
         ];
+        let savedEnPassant = enPassant;
 
         // Remove a posição de origem da peça
         savedState[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
@@ -330,6 +330,7 @@ function movePiece() {
                 }
                 // Efeito sonoro de captura
                 CAPTURE_SOUND.play();
+                savedEnPassant = null;
             }
         }
 
@@ -341,10 +342,10 @@ function movePiece() {
             const CAPTURE_RIGHT = selectedColor === WHITE ? fromPosition + 7 : fromPosition - 7;
 
             // Verifica se o peão foi capturado pelo movimento en passant
-            if ((enPassant !== null) && (toPosition === CAPTURE_LEFT || toPosition === CAPTURE_RIGHT)
-                && (OPPONENT_PAWNS & (1n << BigInt(enPassant)))) {
+            if ((savedEnPassant !== null) && (toPosition === CAPTURE_LEFT || toPosition === CAPTURE_RIGHT)
+                && (OPPONENT_PAWNS & (1n << BigInt(savedEnPassant)))) {
                 // remove o peão capturado
-                savedState[OPPONENT_COLOR][PAWN] &= ~(1n << BigInt(enPassant));
+                savedState[OPPONENT_COLOR][PAWN] &= ~(1n << BigInt(savedEnPassant));
                 // Efeito sonoro de captura
                 CAPTURE_SOUND.play();
             }
@@ -355,13 +356,13 @@ function movePiece() {
                 if ((OPPONENT_PAWNS & (1n << BigInt(toPosition - 1)) && toPosition > 24) ||
                     (OPPONENT_PAWNS & (1n << BigInt(toPosition + 1)) && toPosition < 39)) {
                     // marca o própio peão para ser capturado pelo movimento en passant
-                    enPassant = toPosition;
+                    savedEnPassant = toPosition;
                 } else {
                     // Desmarca o peão que pode ser capturado en passant
-                    enPassant = null;
+                    savedEnPassant = null;
                 }
             } else {
-                enPassant = null;
+                savedEnPassant = null;
             }
         }
 
@@ -383,8 +384,9 @@ function movePiece() {
             CHECK_SOUND.play();
         }
 
-        // Atualiza os bitboards para o novo estado
+        // Atualiza o estado do tabuleiro
         bitboards = savedState;
+        enPassant = savedEnPassant;
     }
     else {
         // Efeito sonoro de movimento inválido
