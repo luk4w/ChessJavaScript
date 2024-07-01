@@ -22,43 +22,67 @@ const WHITE = 0, BLACK = 1;
 
     Exemplo de bitboard para os peões brancos:
 
-         h g f e d c b a
+         a b c d e f g h
 
-    1    0 0 0 0 0 0 0 0
-    2    1 1 1 1 1 1 1 1
-    3    0 0 0 0 0 0 0 0
-    4    0 0 0 0 0 0 0 0
-    5    0 0 0 0 0 0 0 0
-    6    0 0 0 0 0 0 0 0
-    7    0 0 0 0 0 0 0 0
     8    0 0 0 0 0 0 0 0
+    7    0 0 0 0 0 0 0 0
+    6    0 0 0 0 0 0 0 0
+    5    0 0 0 0 0 0 0 0
+    4    0 0 0 0 0 0 0 0
+    3    0 0 0 0 0 0 0 0
+    2    1 1 1 1 1 1 1 1
+    1    0 0 0 0 0 0 0 0
 
     BIN:
-    00000000 11111111 00000000 00000000 00000000 00000000 00000000 00000000
-    
+    00000000 00000000 00000000 00000000 00000000 00000000 11111111 00000000 
     HEX:
-    0x00FF000000000000
+    0x000000000000FF00
 
     Exemplo de bitboard para os peões pretos:
 
-
     MAIS SIGNIFICATIVO ->   0 0 0 0 0 0 0 0 
-                            0 0 0 0 0 0 0 0
-                            0 0 0 0 0 0 0 0
-                            0 0 0 0 0 0 0 0
-                            0 0 0 0 0 0 0 0
-                            0 0 0 0 0 0 0 0
                             1 1 1 1 1 1 1 1
+                            0 0 0 0 0 0 0 0
+                            0 0 0 0 0 0 0 0
+                            0 0 0 0 0 0 0 0
+                            0 0 0 0 0 0 0 0
+                            0 0 0 0 0 0 0 0
                             0 0 0 0 0 0 0 0  <- MENOS SIGNIFICATIVO
 
     BIN:
-    00000000 00000000 00000000 00000000 00000000 00000000 11111111 00000000
+    00000000 11111111 00000000 00000000 00000000 00000000 00000000 00000000
     HEX:
-    0x000000000000FF00
+    0x00FF000000000000
     
     @BigInt
     BigInt é um objeto embutido que fornece suporte para números inteiros maiores que 2^53 - 1.
     Sua representação é feita com a letra "n" no final.
+
+    @OBS
+    A leitura do bitboard é feita da direita para a esquerda
+
+    1n = 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000001
+
+    0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 1
+
+    1n << BigInt(63) = 10000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+
+    1 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0
+
 */
 
 // Bitboards, para todas as peças
@@ -68,113 +92,115 @@ let bitboards = [
 ];
 
 // Variáveis para as peças
-let allPiecesWhite = 0n;
-let allPiecesBlack = 0n;
-let availableMoves = 0n;
-let selectedPiece = null;
-let selectedColor = null;
-let fromPosition = null;
-let toPosition = null;
-let enPassant = null;
+let allPiecesWhite = 0n; // bitboard com todas as peças brancas
+let allPiecesBlack = 0n; // bitboard com todas as peças pretas
+let availableMoves = 0n; // bitboard com os movimentos disponíveis para a peça selecionada
+let selectedPiece = null; // peça selecionada
+let selectedColor = WHITE; // cor da peça selecionada
+let fromPosition = null; // posição de origem da peça
+let toPosition = null; // posição de destino da peça
+let enPassant = null; // posição do peão que pode ser capturado com en passant
 
 /**
         @MASCARAS_PARA_AS_BORDAS_DO_TABULEIRO
 
-        @const NOT_A_FILE
-        @HEX 0xFEFEFEFEFEFEFEFE
-        @BIN 11111110 11111110 11111110 11111110 11111110 11111110 1111111 011111110
-
-        hgfedcba
-
-        11111110   1
-        11111110   2
-        11111110   3
-        11111110   4
-        11111110   5
-        11111110   6
-        11111110   7
-        11111110   8
-
         @const NOT_H_FILE
-        @HEX 0x7F7F7F7F7F7F7F7F
-        @BIN 01111111 01111111 01111111 01111111 01111111 01111111 01111111 01111111
+        @hex 0xFEFEFEFEFEFEFEFE
+        @bin 11111110 11111110 11111110 11111110 11111110 11111110 1111111 011111110
 
-        hgfedcba
+        a b c d e f g h
+ 
+        1 1 1 1 1 1 1 0   8
+        1 1 1 1 1 1 1 0   7
+        1 1 1 1 1 1 1 0   6
+        1 1 1 1 1 1 1 0   5
+        1 1 1 1 1 1 1 0   4
+        1 1 1 1 1 1 1 0   3
+        1 1 1 1 1 1 1 0   2
+        1 1 1 1 1 1 1 0   1
 
-        01B11111   1
-        01111111   2
-        01111111   3
-        01111111   4
-        01111111   5
-        01111111   6
-        01111111   7
-        01111111   8
+        @const NOT_A_FILE
+        @hex 0x7F7F7F7F7F7F7F7F
+        @bin 01111111 01111111 01111111 01111111 01111111 01111111 01111111 01111111
 
-        @const NOT_1_RANK
-        @HEX 0x00FFFFFFFFFFFFFF
-        @BIN 00000000 11111111 11111111 11111111 11111111 11111111 11111111 11111111
+        a b c d e f g h
 
-        hgfedcba
-
-        00000000    1    
-        11111111    2
-        11111111    3
-        11111111    4
-        11111111    5
-        11111111    6
-        11111111    7
-        11111111    8
-
+        0 1 1 1 1 1 1 1   8
+        0 1 1 1 1 1 1 1   7
+        0 1 1 1 1 1 1 1   6
+        0 1 1 1 1 1 1 1   5
+        0 1 1 1 1 1 1 1   4
+        0 1 1 1 1 1 1 1   3
+        0 1 1 1 1 1 1 1   2
+        0 1 1 1 1 1 1 1   1
 
         @const NOT_8_RANK
-        @HEX 0xFFFFFFFFFFFFFF00
-        @BIN 11111111 11111111 11111111 11111111 11111111 11111111 11111111 00000000
+        @hex 0x00FFFFFFFFFFFFFF
+        @bin 00000000 11111111 11111111 11111111 11111111 11111111 11111111 11111111
 
-        hgfedcba
+        a b c d e f g h
 
-        11111111    1
-        11111111    2
-        11111111    3
-        11111111    4
-        11111111    5
-        11111111    6
-        11111111    7
-        00000000    8
+        0 0 0 0 0 0 0 0    8    
+        1 1 1 1 1 1 1 1    7
+        1 1 1 1 1 1 1 1    6
+        1 1 1 1 1 1 1 1    5
+        1 1 1 1 1 1 1 1    4
+        1 1 1 1 1 1 1 1    3
+        1 1 1 1 1 1 1 1    2
+        1 1 1 1 1 1 1 1    1
+
+
+        @const NOT_1_RANK
+        @hex 0xFFFFFFFFFFFFFF00
+        @bin 11111111 11111111 11111111 11111111 11111111 11111111 11111111 00000000
+
+        a b c d e f g h
+
+        1 1 1 1 1 1 1 1    8
+        1 1 1 1 1 1 1 1    7
+        1 1 1 1 1 1 1 1    6
+        1 1 1 1 1 1 1 1    5
+        1 1 1 1 1 1 1 1    4
+        1 1 1 1 1 1 1 1    3
+        1 1 1 1 1 1 1 1    2
+        0 0 0 0 0 0 0 0    1
 
 */
 
 // Mascaras para as bordas do tabuleiro
-const NOT_A_FILE = 0xFEFEFEFEFEFEFEFEn; // Máscara para eliminar a coluna A
-const NOT_H_FILE = 0x7F7F7F7F7F7F7F7Fn; // Máscara para eliminar a coluna H
-const NOT_1_RANK = 0x00FFFFFFFFFFFFFFn; // Máscara para eliminar a linha 1
-const NOT_8_RANK = 0xFFFFFFFFFFFFFF00n; // Máscara para eliminar a linha 8
+const NOT_A_FILE = 0x7F7F7F7F7F7F7F7Fn; // Máscara para eliminar a coluna A
+const NOT_H_FILE = 0xFEFEFEFEFEFEFEFEn; // Máscara para eliminar a coluna H
+const NOT_1_RANK = 0xFFFFFFFFFFFFFF00n; // Máscara para eliminar a linha 1
+const NOT_8_RANK = 0x00FFFFFFFFFFFFFFn; // Máscara para eliminar a linha 8
 
 // Efeitos sonoros
 const MOVE_SOUND = new Audio("./sounds/move.mp3");
 const CAPTURE_SOUND = new Audio("./sounds/capture.mp3");
 const FAILURE_SOUND = new Audio("./sounds/failure.mp3");
 const CHECK_SOUND = new Audio("./sounds/check.mp3");
+// const CASTLING_SOUND = new Audio("./sounds/castling.mp3");
+// const END_SOUND = new Audio("./sounds/end.mp3");
 
 // Inicializa o tabuleiro de xadrez com as posições iniciais das peças.
 function initializeBoard() {
     // Peões
-    bitboards[WHITE][PAWN] = 0x00FF000000000000n;
-    bitboards[BLACK][PAWN] = 0x000000000000FF00n;
+    bitboards[BLACK][PAWN] = 0x00FF000000000000n;
+    bitboards[WHITE][PAWN] = 0x000000000000FF00n;
     // Cavalos
-    bitboards[WHITE][KNIGHT] = 0x4200000000000000n;
-    bitboards[BLACK][KNIGHT] = 0x0000000000000042n;
+    bitboards[BLACK][KNIGHT] = 0x4200000000000000n;
+    bitboards[WHITE][KNIGHT] = 0x0000000000000042n;
     // Bispos
-    bitboards[WHITE][BISHOP] = 0x2400000000000000n;
-    bitboards[BLACK][BISHOP] = 0x0000000000000024n;
+    bitboards[BLACK][BISHOP] = 0x2400000000000000n;
+    bitboards[WHITE][BISHOP] = 0x0000000000000024n;
     // Torres
-    bitboards[WHITE][ROOK] = 0x8100000000000000n;
-    bitboards[BLACK][ROOK] = 0x0000000000000081n;
+    bitboards[BLACK][ROOK] = 0x8100000000000000n;
+    bitboards[WHITE][ROOK] = 0x0000000000000081n;
     // Rainhas
-    bitboards[WHITE][QUEEN] = 0x0800000000000000n;
-    bitboards[BLACK][QUEEN] = 0x0000000000000008n;
+    bitboards[BLACK][QUEEN] = 0x1000000000000000n;
+    bitboards[WHITE][QUEEN] = 0x0000000000000010n;
     // Reis
-    bitboards[WHITE][KING] = 0x1000000000000000n;
-    bitboards[BLACK][KING] = 0x0000000000000010n;
+    bitboards[BLACK][KING] = 0x0800000000000000n;
+    bitboards[WHITE][KING] = 0x0000000000000008n;
 }
 
 // Função para atualizar os bitboards ALL_PIECES
@@ -192,79 +218,79 @@ function updateAllPieces(bitboards) {
  
     @FROM 8 (h2)
  
-         h g f e d c b a
+         a b c d e f g h
  
-    1    0 0 0 0 0 0 0 0
-    2    1 0 0 0 0 0 0 0
-    3    0 0 0 0 0 0 0 0
-    4    0 0 0 0 0 0 0 0
-    5    0 0 0 0 0 0 0 0
-    6    0 0 0 0 0 0 0 0
-    7    0 0 0 0 0 0 0 0
     8    0 0 0 0 0 0 0 0
- 
- 
-    @BITBOARD_PAWN_WHITE
- 
-         h g f e d c b a
- 
+    7    0 0 0 0 0 0 0 0
+    6    0 0 0 0 0 0 0 0
+    5    0 0 0 0 0 0 0 0
+    4    0 0 0 0 0 0 0 0
+    3    0 0 0 0 0 0 0 0
+    2    0 0 0 0 0 0 0 1
     1    0 0 0 0 0 0 0 0
+ 
+ 
+    @BITBOARD_WHITE_PAWN
+ 
+         a b c d e f g h
+ 
+    8    0 0 0 0 0 0 0 0
+    7    0 0 0 0 0 0 0 0
+    6    0 0 0 0 0 0 0 0
+    5    0 0 0 0 0 0 0 0
+    4    0 0 0 0 0 0 0 0
+    3    0 0 0 0 0 0 0 0
     2    1 1 1 1 1 1 1 1
-    3    0 0 0 0 0 0 0 0
-    4    0 0 0 0 0 0 0 0
-    5    0 0 0 0 0 0 0 0
-    6    0 0 0 0 0 0 0 0
-    7    0 0 0 0 0 0 0 0
-    8    0 0 0 0 0 0 0 0
+    1    0 0 0 0 0 0 0 0
  
-                             bitboards[0][0]:      00000000 11111111 00000000 00000000 00000000 00000000 00000000 00000000 
+                             bitboards[0][0]:      00000000 00000000 00000000 00000000 00000000 00000000 11111111 00000000 
                                         from:      8 (h2)
  
     @DESLOCAMENTO_A_ESQUERDA (Conversão da posição "from" para uma mascara de bits)
-                          1n << BigInt(from):      00000000 10000000 00000000 00000000 00000000 00000000 00000000 00000000 
+                          1n << BigInt(from):      00000000 00000000 00000000 00000000 00000000 00000000 00000001 00000000 
  
     @NOT
-                       ~(1n << BigInt(from)):      11111111 01111111 11111111 11111111 11111111 11111111 11111101 11111111
+                       ~(1n << BigInt(from)):      11111111 11111111 11111111 11111111 11111111 11111111 11111110 11111111
     
     @AND
-                             bitboards[0][0]:      00000000 11111111 00000000 00000000 00000000 00000000 00000000 00000000
-    bitboards[0][0] &= ~(1n << BigInt(from)):      00000000 01111111 00000000 00000000 00000000 00000000 00000000 00000000
+                             bitboards[0][0]:      00000000 00000000 00000000 00000000 00000000 00000000 11111111 00000000 
+    bitboards[0][0] &= ~(1n << BigInt(from)):      00000000 00000000 00000000 00000000 00000000 00000000 11111110 00000000 
  
 
     @COMPORTAMENTO_DE_MEMORIA_PARA_ADICIONAR_PECA
  
     @TO 16 (h3)
  
-         h g f e d c b a
+         a b c d e f g h
  
-    1    0 0 0 0 0 0 0 0
-    2    0 0 0 0 0 0 0 0
-    3    1 0 0 0 0 0 0 0
-    4    0 0 0 0 0 0 0 0
-    5    0 0 0 0 0 0 0 0
-    6    0 0 0 0 0 0 0 0
-    7    0 0 0 0 0 0 0 0
     8    0 0 0 0 0 0 0 0
+    7    0 0 0 0 0 0 0 0
+    6    0 0 0 0 0 0 0 0
+    5    0 0 0 0 0 0 0 0
+    4    0 0 0 0 0 0 0 0
+    3    0 0 0 0 0 0 0 1
+    2    0 0 0 0 0 0 0 0
+    1    0 0 0 0 0 0 0 0
  
     @BITBOARD_PAWN_WHITE_POSICAO_8_REMOVIDA
  
-         h g f e d c b a
+         a b c d e f g h
  
-    1    0 0 0 0 0 0 0 0
-    2    0 1 1 1 1 1 1 1
-    3    0 0 0 0 0 0 0 0
-    4    0 0 0 0 0 0 0 0
-    5    0 0 0 0 0 0 0 0
-    6    0 0 0 0 0 0 0 0
-    7    0 0 0 0 0 0 0 0
     8    0 0 0 0 0 0 0 0
+    7    0 0 0 0 0 0 0 0
+    6    0 0 0 0 0 0 0 0
+    5    0 0 0 0 0 0 0 0
+    4    0 0 0 0 0 0 0 0
+    3    0 0 0 0 0 0 0 0
+    2    1 1 1 1 1 1 1 0
+    1    0 0 0 0 0 0 0 0
 
     @DESLOCAMENTO_A_ESQUERDA (Conversão da posição "to" para uma mascara de bits)
-                         1n << BigInt(to):         00000000 00000000 10000000 00000000 00000000 00000000 00000000 00000000
+                         1n << BigInt(to):         00000000 00000000 00000000 00000000 00000000 00000001 00000000 00000000
  
     @OR
-                          bitboards[0][0]:         00000000 01111111 00000000 00000000 00000000 00000000 00000000 00000000
-    bitboards[0][0] |= (1n << BigInt(to)):         00000000 01111111 10000000 00000000 00000000 00000000 00000000 00000000
+                          bitboards[0][0]:         00000000 00000000 00000000 00000000 00000000 00000000 11111110 00000000
+    bitboards[0][0] |= (1n << BigInt(to)):         00000000 00000000 10000000 00000000 00000000 00000001 11111110 00000000
  
 */
 function movePiece() {
@@ -309,10 +335,10 @@ function movePiece() {
 
         if (selectedPiece === PAWN) {
 
-            // Obtem as peças adversárias
+            // Obtem os peões adversários
             const OPPONENT_PAWNS = selectedColor === WHITE ? savedState[BLACK][PAWN] : savedState[WHITE][PAWN];
-            const CAPTURE_LEFT = selectedColor === WHITE ? fromPosition - 9 : fromPosition + 9;
-            const CAPTURE_RIGHT = selectedColor === WHITE ? fromPosition - 7 : fromPosition + 7;
+            const CAPTURE_LEFT = selectedColor === WHITE ? fromPosition + 9 : fromPosition - 9;
+            const CAPTURE_RIGHT = selectedColor === WHITE ? fromPosition + 7 : fromPosition - 7;
 
             // Verifica se o peão foi capturado pelo movimento en passant
             if ((enPassant !== null) && (toPosition === CAPTURE_LEFT || toPosition === CAPTURE_RIGHT)
@@ -366,23 +392,36 @@ function movePiece() {
     }
 }
 
-// função auxiliar para transformar a peça em elemento HTML
-function pieceToChar(piece, color) {
+// Função auxiliar para transformar a peça em elemento HTML
+function pieceToString(piece, color) {
     const pieces = ["pawn", "knight", "bishop", "rook", "queen", "king"];
     return (color === WHITE ? "white_" : "black_") + pieces[piece];
 }
 
-// Função para renderizar o tabuleiro no HTML
+/**
+    @HTML
+    <table id="chessboard">
+        <tr> <!-- rank 7 --> </tr>
+        <tr> <!-- rank 6 --> </tr>
+        <tr> <!-- rank 5 --> </tr>
+        <tr> <!-- rank 4 --> </tr>
+        <tr> <!-- rank 3 --> </tr>
+        <tr> <!-- rank 2 --> </tr>
+        <tr> <!-- rank 1 --> </tr>
+        <tr> <!-- rank 0 --> </tr>
+    </table>
+
+    Função para renderizar o tabuleiro no HTML
+*/
 function renderBoard() {
     const boardElement = document.getElementById("chessboard");
     boardElement.innerHTML = ""; // Limpa tabuleiro
 
-    // Criação dos quadrados do tabuleiro
-    // iteração das linhas
-    for (let rank = 0; rank < 8; rank++) {
+    // Iteração das linhas
+    for (let rank = 7; rank >= 0; rank--) {
         let row = document.createElement("tr"); // table row
-        // iteração das colunas
-        for (let file = 0; file < 8; file++) {
+        // Iteração das colunas
+        for (let file = 7; file >= 0; file--) {
             let square = document.createElement("td"); // table data
             square.className = (rank + file) % 2 === 0 ? "white" : "black"; // alternância de cores
             const index = rank * 8 + file; // index do quadrado
@@ -429,7 +468,7 @@ function addPieceToBoard(index, piece, color) {
     square.innerHTML = "";
     // Cria o elemento para inserir a peça
     const pieceDiv = document.createElement("div");
-    pieceDiv.className = `piece ${pieceToChar(piece, color)}`;
+    pieceDiv.className = `piece ${pieceToString(piece, color)}`;
     square.appendChild(pieceDiv); // Adiciona a peça no quadrado
 }
 
@@ -448,7 +487,7 @@ function handlesquareClick(event) {
                     selectedColor = color;
                     fromPosition = index;
 
-                    // Marca a casa selecionado
+                    // Marca a casa selecionada
                     event.currentTarget.classList.add("selected");
 
                     // Verifica os movimentos possíveis para a peça selecionada
@@ -479,7 +518,8 @@ function handlesquareClick(event) {
                 }
             }
         }
-    } else { // Se não foi selecionada uma peça, então foi selecionado um quadrado de destino
+    } else {
+        // Se não foi selecionada a peça, então foi selecionado o quadrado de destino
 
         // Obtem a posição de destino
         toPosition = index;
@@ -503,7 +543,6 @@ function handlesquareClick(event) {
 initializeBoard();
 renderBoard();
 
-
 function getPawnMoves(from, color) {
 
     let bitboardMoves = 0n;
@@ -511,8 +550,8 @@ function getPawnMoves(from, color) {
     // Variáveis comuns
     const OPPONENT_PIECES = color === WHITE ? allPiecesBlack : allPiecesWhite;
     const OWN_PIECES = color === WHITE ? allPiecesWhite : allPiecesBlack;
-    const ADVANCE = color === WHITE ? -8n : 8n;
-    const DOUBLE_ADVANCE = color === WHITE ? -16n : 16n;
+    const ADVANCE = color === WHITE ? 8n : -8n;
+    const DOUBLE_ADVANCE = color === WHITE ? 16n : -16n;
     const START_ROWS = 0x00FF00000000FF00n;
 
     // Movimento de avanço simples
@@ -534,15 +573,15 @@ function getPawnMoves(from, color) {
     }
 
     // Movimentos de captura
-    let captureLeft = color === WHITE ? ((1n << BigInt(from)) << -9n) : ((1n << BigInt(from)) << 9n);
-    let captureRight = color === WHITE ? ((1n << BigInt(from)) << -7n) : ((1n << BigInt(from)) << 7n);
+    let captureLeft = color === WHITE ? ((1n << BigInt(from)) << 9n) : ((1n << BigInt(from)) >> 9n);
+    let captureRight = color === WHITE ? ((1n << BigInt(from)) << 7n) : ((1n << BigInt(from)) >> 7n);
 
-    // Verifica a captura para a esquerda
+    // Verifica a captura para a direita
     if (captureLeft & OPPONENT_PIECES) {
         bitboardMoves |= captureLeft;
     }
 
-    // Verifica a captura para a direita
+    // Verifica a captura para a esquerda
     if (captureRight & OPPONENT_PIECES) {
         bitboardMoves |= captureRight;
     }
@@ -551,8 +590,8 @@ function getPawnMoves(from, color) {
     if (enPassant !== null) {
 
         // Posicoes laterais
-        let p1 = color === WHITE ? from - 1 : from + 1;
-        let p2 = color === WHITE ? from + 1 : from - 1;
+        let p1 = color === WHITE ? from + 1 : from - 1;
+        let p2 = color === WHITE ? from - 1 : from + 1;
 
         // se a posição lateral s1 for igual a do peão marcado para captura en passant
         if (p1 === enPassant) {
@@ -574,44 +613,48 @@ function getRookMoves(from, color) {
     const OWN_PIECES = color === WHITE ? allPiecesWhite : allPiecesBlack;
 
     /**
-            @EXEMPLO_DE_MOVIMENTO_TORRE_EM_H3
+            @EXEMPLO_DE_MOVIMENTO_TORRE
+
+            from: 16 (h3)
+
+            a b c d e f g h
     
-            hgfedcba
+            0 0 0 0 0 0 0 0   8
+            0 0 0 0 0 0 0 0   7
+            0 0 0 0 0 0 0 0   6   
+            0 0 0 0 0 0 0 0   5
+            0 0 0 0 0 0 0 0   4
+            0 0 0 0 0 0 0 1   3   ---> h3
+            0 0 0 0 0 0 0 0   2
+            0 0 0 0 0 0 0 0   1
+            
+            // desloca todos os bits para a esquerda 7 vezes
+            (1n << BigInt(16)) <<= 7n 
+
+            a b c d e f g h
     
-            00000000   1
-            00000000   2
-            10000000   3    => Rh3 (posição 16)
-            00000000   4
-            00000000   5
-            00000000   6
-            00000000   7
-            00000000   8
+            0 0 0 0 0 0 0 0   8
+            0 0 0 0 0 0 0 0   7
+            0 0 0 0 0 0 0 0   6   
+            0 0 0 0 0 0 0 0   5
+            0 0 0 0 0 0 0 0   4
+            1 0 0 0 0 0 0 0   3   ---> a3
+            0 0 0 0 0 0 0 0   2
+            0 0 0 0 0 0 0 0   1
+
+            // desloca todos os bits para a direita 8 vezes
+            (1n << BigInt(16)) >>= 8n
+
+            a b c d e f g h
     
-            (1n << BigInt(16)) >>= 7n
-    
-            hgfedcba
-    
-            00000000   1                                                    
-            00000000   2
-            00000001   3    => Ra3 (posição 23)
-            00000000   4
-            00000000   5
-            00000000   6
-            00000000   7
-            00000000   8
-    
-            (1n << BigInt(23)) <<= 1n
-    
-            hgfedcba
-    
-            00000000   1
-            00000000   2
-            00000010   3    => Rf3 (posição 22)
-            00000000   4
-            00000000   5
-            00000000   6
-            00000000   7
-            00000000   8 
+            0 0 0 0 0 0 0 0   8
+            0 0 0 0 0 0 0 0   7
+            0 0 0 0 0 0 0 0   6   
+            0 0 0 0 0 0 0 0   5
+            0 0 0 0 0 0 0 0   4
+            0 0 0 0 0 0 0 0   3   
+            1 0 0 0 0 0 0 0   2   ---> a2
+            0 0 0 0 0 0 0 0   1 
     */
 
     let movement;
@@ -619,16 +662,16 @@ function getRookMoves(from, color) {
     // Movimentos para a esquerda
     movement = 1n << BigInt(from);
     while (movement & NOT_A_FILE) {
-        movement >>= 1n; // deslocamento para direita (diminui o valor binario)
-        if (movement & OWN_PIECES) break;
-        bitboardMoves |= movement;
-        if (movement & OPPONENT_PIECES) break;
+        movement <<= 1n; // deslocamento para esquerda
+        if (movement & OWN_PIECES) break; // se tiver uma peça aliada, para o movimento
+        bitboardMoves |= movement; // adiciona o movimento ao bitboard
+        if (movement & OPPONENT_PIECES) break; // captura e para o movimento
     }
 
     // Movimentos para a direita
     movement = 1n << BigInt(from);
     while (movement & NOT_H_FILE) {
-        movement <<= 1n; // deslocamento para esquerda (aumenta o valor binario)
+        movement >>= 1n; // deslocamento para direita
         if (movement & OWN_PIECES) break;
         bitboardMoves |= movement;
         if (movement & OPPONENT_PIECES) break;
@@ -636,8 +679,8 @@ function getRookMoves(from, color) {
 
     // Movimentos para cima
     movement = 1n << BigInt(from);
-    while (movement & NOT_1_RANK) {
-        movement <<= 8n; // deslocamento para esquerda (aumenta o valor binario)
+    while (movement & NOT_8_RANK) {
+        movement <<= 8n; // deslocamento para esquerda
         if (movement & OWN_PIECES) break;
         bitboardMoves |= movement;
         if (movement & OPPONENT_PIECES) break;
@@ -645,8 +688,8 @@ function getRookMoves(from, color) {
 
     // Movimentos para baixo
     movement = 1n << BigInt(from);
-    while (movement & NOT_8_RANK) {
-        movement >>= 8n; // deslocamento para direita (diminui o valor binario)
+    while (movement & NOT_1_RANK) {
+        movement >>= 8n; // deslocamento para direita
         if (movement & OWN_PIECES) break;
         bitboardMoves |= movement;
         if (movement & OPPONENT_PIECES) break;
@@ -658,19 +701,9 @@ function getRookMoves(from, color) {
 function getKnightMoves(from, color) {
     let bitboardMoves = 0n;
     const OWN_PIECES = color === WHITE ? allPiecesWhite : allPiecesBlack;
+    const KNIGHT_MOVES = [17, 15, 10, 6, -6, -10, -15, -17];
 
-    // 16 + 1 para baixo e 1 para direita
-    // 16 - 1 para baixo e 1 para esquerda
-    // 8 + 2 para baixo e 2 para direita
-    // 8 - 2 para baixo e 2 para esquerda
-    // -8 + 2 para cima e 2 para direita
-    // -8 - 2 para cima e 2 para esquerda
-    // -16 + 1 para cima e 1 para direita
-    // -16 - 1 para cima e 1 para esquerda
-
-    const knightMoves = [17, 15, 10, 6, -6, -10, -15, -17];
-
-    for (let move of knightMoves) {
+    for (let move of KNIGHT_MOVES) {
         // Calcula a posição do movimento
         let movement = from + move;
         // Verificação de borda para evitar saidas do tabuleiro
@@ -692,26 +725,26 @@ function getBishopMoves(from, color) {
     const OWN_PIECES = color === WHITE ? allPiecesWhite : allPiecesBlack;
 
     /**
+
+    from: 18 (f3)
+
+    a b c d e f g h
     
-    @BISPO_PRETO_EM_F3
- 
-         h g f e d c b a
- 
-    1    0 0 0 0 0 0 0 0
-    2    0 0 0 0 0 0 0 0
-    3    0 0 0 0 0 0 0 0
-    4    0 0 0 0 0 0 0 0
-    5    0 0 0 0 0 0 0 0
-    6    0 0 0 0 0 0 0 0
-    7    0 0 0 0 0 0 0 0
-    8    0 0 1 0 0 0 0 0
+    0 0 0 0 0 0 0 0   8
+    0 0 0 0 0 0 0 0   7
+    0 0 0 0 0 0 0 0   6   
+    0 0 0 0 0 0 0 0   5
+    0 0 0 0 0 0 0 0   4
+    0 0 0 0 0 1 0 0   3   
+    0 0 0 0 0 0 0 0   2
+    0 0 0 0 0 0 0 0   1 
  
     */
 
     let movement;
     // Movimentos para a diagonal superior esquerda do bitboard
     movement = 1n << BigInt(from);
-    while (movement & (NOT_H_FILE & NOT_1_RANK)) {
+    while (movement & (NOT_A_FILE & NOT_8_RANK)) {
         movement <<= 9n; // deslocamento para diagonal superior esquerda
         if (movement & OWN_PIECES) break;
         bitboardMoves |= movement;
@@ -720,7 +753,7 @@ function getBishopMoves(from, color) {
 
     // Movimentos para a diagonal superior direita do bitboard
     movement = 1n << BigInt(from);
-    while (movement & (NOT_A_FILE & NOT_1_RANK)) {
+    while (movement & (NOT_H_FILE & NOT_8_RANK)) {
         movement <<= 7n; // deslocamento para diagonal superior direita 
         if (movement & OWN_PIECES) break;
         bitboardMoves |= movement;
@@ -729,7 +762,7 @@ function getBishopMoves(from, color) {
 
     // Movimentos para a diagonal inferior esquerda do bitboard
     movement = 1n << BigInt(from);
-    while (movement & (NOT_H_FILE & NOT_8_RANK)) {
+    while (movement & (NOT_A_FILE & NOT_1_RANK)) {
         movement >>= 7n; // deslocamento para diagonal inferior esquerda
         if (movement & OWN_PIECES) break;
         bitboardMoves |= movement;
@@ -738,7 +771,7 @@ function getBishopMoves(from, color) {
 
     // Movimentos para a diagonal inferior direita do bitboard
     movement = 1n << BigInt(from);
-    while (movement & (NOT_A_FILE & NOT_8_RANK)) {
+    while (movement & (NOT_H_FILE & NOT_1_RANK)) {
         movement >>= 9n; // deslocamento para diagonal inferior direita
         if (movement & OWN_PIECES) break;
         bitboardMoves |= movement;
@@ -756,7 +789,6 @@ function getKingMoves(from, color) {
     let bitboardMoves = 0n;
     const OWN_PIECES = color === WHITE ? allPiecesWhite : allPiecesBlack;
     const kingMoves = [1, -1, 8, -8, 7, -7, 9, -9];
-
     for (let move of kingMoves) {
         // Calcula a posição do movimento
         let movement = from + move;
@@ -769,6 +801,8 @@ function getKingMoves(from, color) {
             }
         }
     }
+    // Movimento de roque
+
     return bitboardMoves;
 }
 
