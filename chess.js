@@ -96,10 +96,11 @@ let allPiecesWhite = 0n; // bitboard com todas as peças brancas
 let allPiecesBlack = 0n; // bitboard com todas as peças pretas
 let availableMoves = 0n; // bitboard com os movimentos disponíveis para a peça selecionada
 let selectedPiece = null; // peça selecionada
-let selectedColor = WHITE; // cor da peça selecionada
+let selectedColor = null; // cor da peça selecionada
 let fromPosition = null; // posição de origem da peça
 let toPosition = null; // posição de destino da peça
 let enPassant = null; // posição do peão que pode ser capturado com en passant
+let currentTurn = WHITE; // Turno atual
 
 /**
         @MASCARAS_PARA_AS_BORDAS_DO_TABULEIRO
@@ -391,7 +392,11 @@ function movePiece() {
     else {
         // Efeito sonoro de movimento inválido
         FAILURE_SOUND.play();
+        return;
     }
+
+    // Atualiza o turno
+    currentTurn = currentTurn === WHITE ? BLACK : WHITE;
 }
 
 // Função auxiliar para transformar a peça em elemento HTML
@@ -436,6 +441,9 @@ function renderBoard() {
 
     // Atualização das peças no tabuleiro
     updatePiecesOnBoard();
+
+    // Atualiza a FEN
+    updateFEN();
 }
 
 // Função para atualizar todas as peças no tabuleiro
@@ -483,6 +491,11 @@ function handlesquareClick(event) {
         for (let color = 0; color < 2; color++) {
             for (let piece = 0; piece < 6; piece++) {
                 if (bitboards[color][piece] & (1n << BigInt(index))) {
+
+                    // Verifica se a peça pertence ao jogador do turno atual
+                    if (color !== currentTurn) {
+                        return;
+                    }
 
                     // Obtem o tipo da peça, a cor e a posição de origem
                     selectedPiece = piece;
@@ -872,7 +885,7 @@ function isIllegalMove(bitboards) {
     pppppppp
     rnbqkbnr
 
-    @TURNO_DE_QUEM_JOGA
+    @TURNO_ATUAL
     w = white; b = black.
 
     @ROQUE
@@ -937,5 +950,14 @@ function generateFEN() {
             fen += '/';
         }
     }
+
+    // Adiciona a cor do jogador que deve jogar
+    fen += currentTurn === WHITE ? " w" : " b";
+
     return fen;
+}
+
+function updateFEN() {
+    const FEN = generateFEN();
+    document.getElementById("fen").value = FEN;
 }
