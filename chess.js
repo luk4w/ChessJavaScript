@@ -92,8 +92,6 @@ let bitboards = [
 ];
 
 // Variáveis para as peças
-let allPiecesWhite = 0n; // bitboard com todas as peças brancas
-let allPiecesBlack = 0n; // bitboard com todas as peças pretas
 let availableMoves = 0n; // bitboard com os movimentos disponíveis para a peça selecionada
 let selectedPiece = null; // peça selecionada
 let selectedColor = null; // cor da peça selecionada
@@ -216,16 +214,6 @@ function initializeBoard() {
     bitboards[WHITE][KING] = 0x0000000000000008n;
 }
 
-// Função para atualizar os bitboards ALL_PIECES
-function updateAllPieces(bitboards) {
-
-    allPiecesWhite = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] |
-        bitboards[WHITE][ROOK] | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
-
-    allPiecesBlack = bitboards[BLACK][PAWN] | bitboards[BLACK][KNIGHT] | bitboards[BLACK][BISHOP] |
-        bitboards[BLACK][ROOK] | bitboards[BLACK][QUEEN] | bitboards[BLACK][KING];
-}
-
 /** 
     @COMPORTAMENTO_DE_MEMORIA_PARA_REMOVER_PECA
  
@@ -307,51 +295,42 @@ function updateAllPieces(bitboards) {
 */
 function movePiece() {
 
-    if (availableMoves & (1n << BigInt(toPosition))) {
+    // Cor da peça adversária
+    const OPPONENT_COLOR = selectedColor === WHITE ? BLACK : WHITE;
+    // Bitboards das peças adversárias
+    let opponentPices = bitboards[OPPONENT_COLOR][PAWN] | bitboards[OPPONENT_COLOR][KNIGHT] | bitboards[OPPONENT_COLOR][BISHOP]
+        | bitboards[OPPONENT_COLOR][ROOK] | bitboards[OPPONENT_COLOR][QUEEN] | bitboards[OPPONENT_COLOR][KING];
+    // Mascara de bits da nova posição
+    const TO_MASK = 1n << BigInt(toPosition);
 
-        // Salva o estado atual do tabuleiro
-        let savedState = [
-            bitboards[WHITE].map(bitboard => BigInt(bitboard)), // Copia o array de peças brancas
-            bitboards[BLACK].map(bitboard => BigInt(bitboard))  // Copia o array de peças pretas
-        ];
-        // Obtem a cor do oponente
-        const OPPONENT_COLOR = selectedColor === WHITE ? BLACK : WHITE;
-        // Mascara de bits para a nova posição da peça
-        let toMask = 1n << BigInt(toPosition);
-        // Remove a posição de origem da peça
-        savedState[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
-        // Adiciona a nova posição da peça
-        savedState[selectedColor][selectedPiece] |= toMask;
+    if (availableMoves & TO_MASK) {
 
         // Incrementa os meios movimentos
         halfMoves++;
+        // Remove a posição de origem da peça
+        bitboards[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
+        // Adiciona a nova posição da peça
+        bitboards[selectedColor][selectedPiece] |= TO_MASK;
 
-        // Iteração nas bitboards adversárias, para verificar se a peça adversária foi capturada
-        for (let opponentPiece = 0; opponentPiece < 6; opponentPiece++) {
-            if (savedState[OPPONENT_COLOR][opponentPiece] & toMask) {
-                // Remove a peça adversária
-                savedState[OPPONENT_COLOR][opponentPiece] &= ~toMask;
-                // Verifica se o movimento foi uma captura legal
-                if (isIllegalMove(savedState)) {
-                    // Efeito sonoro de movimento inválido
-                    FAILURE_SOUND.play();
-                    // Volta no estado anterior das peças
-                    updateAllPieces(bitboards);
-                    // Desfaz o incremento dos meios movimentos
-                    halfMoves--;
-                    return;
+        // Verifica se houve captura de peça
+        if (TO_MASK & opponentPices) {
+            // Iteração nas bitboards adversárias, para saber qual peça foi capturada
+            for (let opponentPiece = 0; opponentPiece < 6; opponentPiece++) {
+                if (bitboards[OPPONENT_COLOR][opponentPiece] & TO_MASK) {
+                    // Remove a peça adversária
+                    bitboards[OPPONENT_COLOR][opponentPiece] &= ~TO_MASK;
                 }
-                // Efeito sonoro de captura
-                CAPTURE_SOUND.play();
-                enPassant = null;
-                halfMoves = 0;
             }
+            // Efeito sonoro de captura
+            CAPTURE_SOUND.play();
+            enPassant = null;
+            halfMoves = 0;
         }
-        
+
         switch (selectedPiece) {
             case PAWN:
                 // Obtem os peões adversários
-                const OPPONENT_PAWNS = selectedColor === WHITE ? savedState[BLACK][PAWN] : savedState[WHITE][PAWN];
+                const OPPONENT_PAWNS = selectedColor === WHITE ? bitboards[BLACK][PAWN] : bitboards[WHITE][PAWN];
                 const CAPTURE_LEFT = selectedColor === WHITE ? fromPosition + 9 : fromPosition - 9;
                 const CAPTURE_RIGHT = selectedColor === WHITE ? fromPosition + 7 : fromPosition - 7;
 
@@ -359,15 +338,7 @@ function movePiece() {
                 if ((enPassant !== null) && (toPosition === CAPTURE_LEFT || toPosition === CAPTURE_RIGHT)
                     && (OPPONENT_PAWNS & (1n << BigInt(enPassant)))) {
                     // remove o peão capturado
-                    savedState[OPPONENT_COLOR][PAWN] &= ~(1n << BigInt(enPassant));
-                    // Verifica se o movimento é ilegal
-                    if (isIllegalMove(savedState)) {
-                        // Efeito sonoro de movimento inválido
-                        FAILURE_SOUND.play();
-                        // Volta no estado anterior das peças
-                        updateAllPieces(bitboards);
-                        return;
-                    }
+                    bitboards[OPPONENT_COLOR][PAWN] &= ~(1n << BigInt(enPassant));
                     // Efeito sonoro de captura
                     CAPTURE_SOUND.play();
                 }
@@ -458,11 +429,6 @@ function movePiece() {
         // Efeito sonoro de movimento
         MOVE_SOUND.play();
 
-        // Verifica se houve xeque no rei adversário
-        if (getAllMoves(savedState, selectedColor) & savedState[OPPONENT_COLOR][KING]) {
-            // Efeito sonoro de xeque
-            CHECK_SOUND.play();
-        }
 
         // Contagem das jogadas completas
         if (currentTurn === BLACK) {
@@ -474,9 +440,6 @@ function movePiece() {
 
         // Atualiza a FEN
         updateFEN();
-
-        // Atualiza o estado do tabuleiro
-        bitboards = savedState;
 
     } else {
         // Efeito sonoro de movimento inválido
@@ -548,7 +511,6 @@ function updatePiecesOnBoard() {
             }
         }
     }
-    updateAllPieces(bitboards);
 }
 
 // Função para adicionar uma peça no tabuleiro
@@ -588,25 +550,36 @@ function handlesquareClick(event) {
                     // Marca a casa selecionada
                     event.currentTarget.classList.add("selected");
 
+                    if (isPinned(fromPosition)) {
+                        console.log("Está cravada na posição: " + fromPosition);
+                        selectedPiece = null;
+                        selectedColor = null;
+                        fromPosition = null;
+                        availableMoves = 0n;
+                        // Remove a marcação do quadrado selecionado
+                        document.querySelectorAll(".selected").forEach(square => square.classList.remove("selected"));
+                        return;
+                    }
+
                     // Verifica os movimentos possíveis para a peça selecionada
                     switch (selectedPiece) {
                         case PAWN:
-                            availableMoves = getPawnMoves(fromPosition, selectedColor);
+                            availableMoves = getPawnMoves(fromPosition, selectedColor, bitboards);
                             return;
                         case ROOK:
-                            availableMoves = getRookMoves(fromPosition, selectedColor);
+                            availableMoves = getRookMoves(fromPosition, selectedColor, bitboards);
                             break;
                         case KNIGHT:
-                            availableMoves = getKnightMoves(fromPosition, selectedColor);
+                            availableMoves = getKnightMoves(fromPosition, selectedColor, bitboards);
                             break;
                         case BISHOP:
-                            availableMoves = getBishopMoves(fromPosition, selectedColor);
+                            availableMoves = getBishopMoves(fromPosition, selectedColor, bitboards);
                             break;
                         case QUEEN:
-                            availableMoves = getQueenMoves(fromPosition, selectedColor);
+                            availableMoves = getQueenMoves(fromPosition, selectedColor, bitboards);
                             break;
                         case KING:
-                            availableMoves = getKingMoves(fromPosition, selectedColor);
+                            availableMoves = getKingMoves(fromPosition, selectedColor, bitboards);
                             break;
                         default:
                             console.log("Piece not found!");
@@ -629,9 +602,9 @@ function handlesquareClick(event) {
         selectedColor = null;
         toPosition = null;
         availableMoves = 0n;
-
         // Remove a marcação do quadrado selecionado
         document.querySelectorAll(".selected").forEach(square => square.classList.remove("selected"));
+
         // Renderiza as novas posições das peças
         renderBoard();
     }
@@ -641,13 +614,17 @@ function handlesquareClick(event) {
 initializeBoard();
 renderBoard();
 
-function getPawnMoves(from, color) {
+function getPawnMoves(from, color, bitboards) {
 
     let bitboardMoves = 0n;
 
     // Variáveis comuns
-    const OPPONENT_PIECES = color === WHITE ? allPiecesBlack : allPiecesWhite;
-    const OWN_PIECES = color === WHITE ? allPiecesWhite : allPiecesBlack;
+    const BLACK_PIECES = bitboards[BLACK][PAWN] | bitboards[BLACK][KNIGHT] | bitboards[BLACK][BISHOP] | bitboards[BLACK][ROOK]
+        | bitboards[BLACK][QUEEN] | bitboards[BLACK][KING];
+    const WHITE_PIECES = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] | bitboards[WHITE][ROOK]
+        | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
+    const OWN_PIECES = color === WHITE ? WHITE_PIECES : BLACK_PIECES;
+    const OPPONENT_PIECES = color === WHITE ? BLACK_PIECES : WHITE_PIECES;
     const ADVANCE = color === WHITE ? 8n : -8n;
     const DOUBLE_ADVANCE = color === WHITE ? 16n : -16n;
     const START_ROWS = 0x00FF00000000FF00n;
@@ -704,11 +681,13 @@ function getPawnMoves(from, color) {
     return bitboardMoves;
 }
 
-function getRookMoves(from, color) {
+function getRookMoves(from, color, bitboards) {
 
     let bitboardMoves = 0n;
-    const OPPONENT_PIECES = color === WHITE ? allPiecesBlack : allPiecesWhite;
-    const OWN_PIECES = color === WHITE ? allPiecesWhite : allPiecesBlack;
+    const BLACK_PIECES = bitboards[BLACK][PAWN] | bitboards[BLACK][KNIGHT] | bitboards[BLACK][BISHOP] | bitboards[BLACK][ROOK] | bitboards[BLACK][QUEEN] | bitboards[BLACK][KING];
+    const WHITE_PIECES = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] | bitboards[WHITE][ROOK] | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
+    const OWN_PIECES = color === WHITE ? WHITE_PIECES : BLACK_PIECES;
+    const OPPONENT_PIECES = color === WHITE ? BLACK_PIECES : WHITE_PIECES;
 
     /**
             @EXEMPLO_DE_MOVIMENTO_TORRE
@@ -796,9 +775,12 @@ function getRookMoves(from, color) {
     return bitboardMoves;
 }
 
-function getKnightMoves(from, color) {
+function getKnightMoves(from, color, bitboards) {
     let bitboardMoves = 0n;
-    const OWN_PIECES = color === WHITE ? allPiecesWhite : allPiecesBlack;
+
+    const BLACK_PIECES = bitboards[BLACK][PAWN] | bitboards[BLACK][KNIGHT] | bitboards[BLACK][BISHOP] | bitboards[BLACK][ROOK] | bitboards[BLACK][QUEEN] | bitboards[BLACK][KING];
+    const WHITE_PIECES = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] | bitboards[WHITE][ROOK] | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
+    const OWN_PIECES = color === WHITE ? WHITE_PIECES : BLACK_PIECES;
     const KNIGHT_MOVES = [17, 15, 10, 6, -6, -10, -15, -17];
 
     for (let move of KNIGHT_MOVES) {
@@ -816,11 +798,13 @@ function getKnightMoves(from, color) {
     return bitboardMoves;
 }
 
-function getBishopMoves(from, color) {
+function getBishopMoves(from, color, bitboards) {
 
     let bitboardMoves = 0n;
-    const OPPONENT_PIECES = color === WHITE ? allPiecesBlack : allPiecesWhite;
-    const OWN_PIECES = color === WHITE ? allPiecesWhite : allPiecesBlack;
+    const BLACK_PIECES = bitboards[BLACK][PAWN] | bitboards[BLACK][KNIGHT] | bitboards[BLACK][BISHOP] | bitboards[BLACK][ROOK] | bitboards[BLACK][QUEEN] | bitboards[BLACK][KING];
+    const WHITE_PIECES = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] | bitboards[WHITE][ROOK] | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
+    const OWN_PIECES = color === WHITE ? WHITE_PIECES : BLACK_PIECES;
+    const OPPONENT_PIECES = color === WHITE ? BLACK_PIECES : WHITE_PIECES;
 
     /**
 
@@ -878,14 +862,16 @@ function getBishopMoves(from, color) {
     return bitboardMoves;
 }
 
-function getQueenMoves(from, color) {
-    return getRookMoves(from, color) | getBishopMoves(from, color);
+function getQueenMoves(from, color, bitboards) {
+    return getRookMoves(from, color, bitboards) | getBishopMoves(from, color, bitboards);
 }
 
-function getKingMoves(from, color) {
+function getKingMoves(from, color, bitboards) {
 
     let bitboardMoves = 0n;
-    const OWN_PIECES = color === WHITE ? allPiecesWhite : allPiecesBlack;
+    const BLACK_PIECES = bitboards[BLACK][PAWN] | bitboards[BLACK][KNIGHT] | bitboards[BLACK][BISHOP] | bitboards[BLACK][ROOK] | bitboards[BLACK][QUEEN] | bitboards[BLACK][KING];
+    const WHITE_PIECES = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] | bitboards[WHITE][ROOK] | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
+    const OWN_PIECES = color === WHITE ? WHITE_PIECES : BLACK_PIECES;
     const kingMoves = [1, -1, 8, -8, 7, -7, 9, -9];
     for (let move of kingMoves) {
         // Calcula a posição do movimento
@@ -902,48 +888,6 @@ function getKingMoves(from, color) {
     // Movimento de roque
 
     return bitboardMoves;
-}
-
-function getAllMoves(bitboards, color) {
-    let bitboardMoves = 0n;
-    // Iteração para cada tipo de peça
-    for (let piece = 0; piece < 6; piece++) {
-        let bitboard = bitboards[color][piece];
-        // Iteração para cada bit no bitboard
-        for (let i = 0; i < 64; i++) {
-            if (bitboard & (1n << BigInt(i))) {
-                let pieceMoves = 0n;
-                switch (piece) {
-                    case PAWN:
-                        pieceMoves = getPawnMoves(i, color);
-                        break;
-                    case ROOK:
-                        pieceMoves = getRookMoves(i, color);
-                        break;
-                    case KNIGHT:
-                        pieceMoves = getKnightMoves(i, color);
-                        break;
-                    case BISHOP:
-                        pieceMoves = getBishopMoves(i, color);
-                        break;
-                    case QUEEN:
-                        pieceMoves = getQueenMoves(i, color);
-                        break;
-                    case KING:
-                        pieceMoves = getKingMoves(i, color);
-                        break;
-                }
-                bitboardMoves |= pieceMoves;
-            }
-        }
-    }
-    return bitboardMoves;
-}
-
-function isIllegalMove(bitboards) {
-    updateAllPieces(bitboards);
-    const OPPONENT_COLOR = selectedColor === WHITE ? BLACK : WHITE;
-    return bitboards[selectedColor][KING] & getAllMoves(bitboards, OPPONENT_COLOR);
 }
 
 /**
@@ -1074,4 +1018,117 @@ function getCastlingFEN() {
     if (availableCastling & BLACK_ROOK_KINGSIDE) result += 'k';
     if (availableCastling & BLACK_ROOK_QUEENSIDE) result += 'q';
     return result || '-';
+}
+
+function getAllMoves(color, bitboards) {
+    let moves = 0n;
+    // Iteração das peças
+    for (let piece = 0; piece < 6; piece++) {
+        let bitboard = bitboards[color][piece];
+        // Iteração das posições presentes em cada bitboard
+        for (let i = 0; i < 64; i++) {
+            if (bitboard & (1n << BigInt(i))) {
+                switch (piece) {
+                    case PAWN:
+                        moves |= getPawnMoves(i, color, bitboards);
+                        break;
+                    case ROOK:
+                        moves |= getRookMoves(i, color, bitboards);
+                        break;
+                    case KNIGHT:
+                        moves |= getKnightMoves(i, color, bitboards);
+                        break;
+                    case BISHOP:
+                        moves |= getBishopMoves(i, color, bitboards);
+                        break;
+                    case QUEEN:
+                        moves |= getQueenMoves(i, color, bitboards);
+                        break;
+                    case KING:
+                        moves |= getKingMoves(i, color, bitboards);
+                        break;
+                }
+            }
+        }
+    }
+    return moves;
+}
+
+// Verifica se a peça está cravada
+function isPinned(fromPosition) {
+
+    // Copia o estado atual das peças
+    let tempBitboards = [
+        bitboards[WHITE].map(bitboard => BigInt(bitboard)), // Copia o array de peças brancas
+        bitboards[BLACK].map(bitboard => BigInt(bitboard))  // Copia o array de peças pretas
+    ];
+
+    const KING_MASK = tempBitboards[selectedColor][KING];
+    const OPPONENT_COLOR = selectedColor === WHITE ? BLACK : WHITE;
+
+    // remove a peça da posição de origem
+    tempBitboards[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
+
+    // peça que está atacando o rei
+    let positionAttackerMask = 0n;
+    const ENEMY_MOVES = getAllMoves(OPPONENT_COLOR, tempBitboards);
+
+    // verifica se o bitboard do rei coincide com algum bit de todos os movimentos de ataque das peças inimigas
+    if (KING_MASK & ENEMY_MOVES) {
+        // Verifica a posição de quem realiza o ataque descoberto
+        for (let piece = 0; piece < 6; piece++) {
+            let bitboard = tempBitboards[OPPONENT_COLOR][piece];
+            for (let i = 0; i < 64; i++) {
+                if (bitboard & (1n << BigInt(i))) {
+                    switch (piece) {
+                        case ROOK:
+                            if (getRookMoves(i, OPPONENT_COLOR, tempBitboards) & KING_MASK) {
+                                positionAttackerMask |= 1n << BigInt(i);
+                            }
+                            break;
+                        case BISHOP:
+                            if (getBishopMoves(i, OPPONENT_COLOR, tempBitboards) & KING_MASK) {
+                                positionAttackerMask |= 1n << BigInt(i);
+                            }
+                            break;
+                        case QUEEN:
+                            if (getQueenMoves(i, OPPONENT_COLOR, tempBitboards) & KING_MASK) {
+                                positionAttackerMask |= 1n << BigInt(i);
+                            }
+                            break;
+                    }
+                }
+            }
+        }
+
+        // console.log("positionAttackerMask:");
+        // console.log(positionAttackerMask.toString(2).padStart(64, '0').match(/.{8}/g).join('\n'));
+
+        switch (selectedPiece) {
+            case PAWN:
+                return (positionAttackerMask & getPawnMoves(fromPosition, selectedColor, tempBitboards)) === 0n;
+            case ROOK:
+                return (positionAttackerMask & getRookMoves(fromPosition, selectedColor, tempBitboards)) === 0n;
+            case KNIGHT:
+                return (positionAttackerMask & getKnightMoves(fromPosition, selectedColor, tempBitboards)) === 0n;
+            case BISHOP:
+                return (positionAttackerMask & getBishopMoves(fromPosition, selectedColor, tempBitboards)) === 0n;
+            case QUEEN:
+                return (positionAttackerMask & getQueenMoves(fromPosition, selectedColor, tempBitboards)) === 0n;
+        }
+    }
+    return false;
+}
+function isIllegalMove(fromPosition, toPosition) {
+    // Copia o estado atual das peças
+    let tempBitboards = [
+        bitboards[WHITE].map(bitboard => BigInt(bitboard)), // Copia o array de peças brancas
+        bitboards[BLACK].map(bitboard => BigInt(bitboard))  // Copia o array de peças pretas
+    ];
+    // Remove a posição de origem
+    tempBitboards[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
+    // Adiciona na nova posição
+    tempBitboards[selectedColor][selectedPiece] |= 1n << BigInt(toPosition);
+    // Retorna true se o rei estiver em xeque na nova posição
+    return tempBitboards[selectedColor][KING] & opponentMoves;
 }
