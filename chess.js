@@ -99,8 +99,13 @@ let selectedPiece = null; // peça selecionada
 let selectedColor = null; // cor da peça selecionada
 let fromPosition = null; // posição de origem da peça
 let toPosition = null; // posição de destino da peça
-let enPassant = null; // posição do peão que pode ser capturado com en passant
+
+// Variáveis para o jogo
+let enPassant = null; // Posição do peão que pode ser capturado com en passant
 let currentTurn = WHITE; // Turno atual
+let currentFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // FEN atual
+let halfMoves = 0; // Contagem de 100 movimentos sem captura ou movimento de peão (meio movimento)
+let fullMoves = 1; // Número total de movimentos completos
 
 /**
         @MASCARAS_PARA_AS_BORDAS_DO_TABULEIRO
@@ -181,6 +186,13 @@ const FAILURE_SOUND = new Audio("./sounds/failure.mp3");
 const CHECK_SOUND = new Audio("./sounds/check.mp3");
 // const CASTLING_SOUND = new Audio("./sounds/castling.mp3");
 // const END_SOUND = new Audio("./sounds/end.mp3");
+
+// Máscaras para os tipos de roque
+const WHITE_ROOK_KINGSIDE = 0x0000000000000001n;
+const WHITE_ROOK_QUEENSIDE = 0x0000000000000080n;
+const BLACK_ROOK_KINGSIDE = 0x0100000000000000n;
+const BLACK_ROOK_QUEENSIDE = 0x8000000000000000n;
+let availableCastling = WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE | BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE;
 
 // Inicializa o tabuleiro de xadrez com as posições iniciais das peças.
 function initializeBoard() {
@@ -302,7 +314,6 @@ function movePiece() {
             bitboards[WHITE].map(bitboard => BigInt(bitboard)), // Copia o array de peças brancas
             bitboards[BLACK].map(bitboard => BigInt(bitboard))  // Copia o array de peças pretas
         ];
-        let savedEnPassant = enPassant;
 
         // Remove a posição de origem da peça
         savedState[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
@@ -311,6 +322,9 @@ function movePiece() {
         let toMask = 1n << BigInt(toPosition);
         // Adiciona a nova posição da peça
         savedState[selectedColor][selectedPiece] |= toMask;
+
+        // Incrementa os meios movimentos
+        halfMoves++;
 
         // Obtem a cor do oponente
         const OPPONENT_COLOR = selectedColor === WHITE ? BLACK : WHITE;
@@ -321,20 +335,22 @@ function movePiece() {
             if (savedState[OPPONENT_COLOR][opponentPiece] & toMask) {
                 // Remove a peça adversária
                 savedState[OPPONENT_COLOR][opponentPiece] &= ~toMask;
-
+                // Verifica se o movimento foi uma captura legal
                 if (isIllegalMove(savedState)) {
                     // Efeito sonoro de movimento inválido
                     FAILURE_SOUND.play();
                     // Volta no estado anterior das peças
                     updateAllPieces(bitboards);
+                    // Volta a contagem inicial dos meio movimentos
+                    halfMoves--;
                     return;
                 }
                 // Efeito sonoro de captura
                 CAPTURE_SOUND.play();
-                savedEnPassant = null;
+                enPassant = null;
+                halfMoves = 0;
             }
         }
-
         if (selectedPiece === PAWN) {
 
             // Obtem os peões adversários
@@ -343,10 +359,18 @@ function movePiece() {
             const CAPTURE_RIGHT = selectedColor === WHITE ? fromPosition + 7 : fromPosition - 7;
 
             // Verifica se o peão foi capturado pelo movimento en passant
-            if ((savedEnPassant !== null) && (toPosition === CAPTURE_LEFT || toPosition === CAPTURE_RIGHT)
-                && (OPPONENT_PAWNS & (1n << BigInt(savedEnPassant)))) {
+            if ((enPassant !== null) && (toPosition === CAPTURE_LEFT || toPosition === CAPTURE_RIGHT)
+                && (OPPONENT_PAWNS & (1n << BigInt(enPassant)))) {
                 // remove o peão capturado
-                savedState[OPPONENT_COLOR][PAWN] &= ~(1n << BigInt(savedEnPassant));
+                savedState[OPPONENT_COLOR][PAWN] &= ~(1n << BigInt(enPassant));
+                // Verifica se o movimento é ilegal
+                if (isIllegalMove(savedState)) {
+                    // Efeito sonoro de movimento inválido
+                    FAILURE_SOUND.play();
+                    // Volta no estado anterior das peças
+                    updateAllPieces(bitboards);
+                    return;
+                }
                 // Efeito sonoro de captura
                 CAPTURE_SOUND.play();
             }
@@ -357,25 +381,16 @@ function movePiece() {
                 if ((OPPONENT_PAWNS & (1n << BigInt(toPosition - 1)) && toPosition > 24) ||
                     (OPPONENT_PAWNS & (1n << BigInt(toPosition + 1)) && toPosition < 39)) {
                     // marca o própio peão para ser capturado pelo movimento en passant
-                    savedEnPassant = toPosition;
+                    enPassant = toPosition;
                 } else {
                     // Desmarca o peão que pode ser capturado en passant
-                    savedEnPassant = null;
+                    enPassant = null;
                 }
             } else {
-                savedEnPassant = null;
+                enPassant = null;
             }
+            halfMoves = 0;
         }
-
-        // Verifica se o movimento é ilegal
-        if (isIllegalMove(savedState)) {
-            // Efeito sonoro de movimento inválido
-            FAILURE_SOUND.play();
-            // Volta no estado anterior das peças
-            updateAllPieces(bitboards);
-            return;
-        }
-
         // Efeito sonoro de movimento
         MOVE_SOUND.play();
 
@@ -385,9 +400,32 @@ function movePiece() {
             CHECK_SOUND.play();
         }
 
+        // Verifica o roque
+        if (selectedPiece === KING) {
+            if (selectedColor === WHITE) {
+                availableCastling &= ~(WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE); // Remove KQ
+            } else {
+                availableCastling &= ~(BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE); // Remove kq
+            }
+        } else if (selectedPiece === ROOK) {
+            switch (1n << BigInt(fromPosition)) {
+                case WHITE_ROOK_QUEENSIDE:
+                    availableCastling &= ~WHITE_ROOK_QUEENSIDE; // Remove Q
+                    break;
+                case WHITE_ROOK_KINGSIDE:
+                    availableCastling &= ~WHITE_ROOK_KINGSIDE ; // Remove K
+                    break;
+                case BLACK_ROOK_QUEENSIDE:
+                    availableCastling &= ~BLACK_ROOK_QUEENSIDE; // Remove q
+                    break;
+                case BLACK_ROOK_KINGSIDE:
+                    availableCastling &= ~BLACK_ROOK_KINGSIDE; // Remove k
+                    break;
+            }
+        }
+
         // Atualiza o estado do tabuleiro
         bitboards = savedState;
-        enPassant = savedEnPassant;
     }
     else {
         // Efeito sonoro de movimento inválido
@@ -395,8 +433,18 @@ function movePiece() {
         return;
     }
 
+
+
+    // Contagem das jogadas completas
+    if (currentTurn === BLACK) {
+        fullMoves++;
+    }
+
     // Atualiza o turno
     currentTurn = currentTurn === WHITE ? BLACK : WHITE;
+
+    // Atualiza a FEN
+    updateFEN();
 }
 
 // Função auxiliar para transformar a peça em elemento HTML
@@ -441,9 +489,6 @@ function renderBoard() {
 
     // Atualização das peças no tabuleiro
     updatePiecesOnBoard();
-
-    // Atualiza a FEN
-    updateFEN();
 }
 
 // Função para atualizar todas as peças no tabuleiro
@@ -905,7 +950,7 @@ function isIllegalMove(bitboards) {
 
 function generateFEN() {
     const PIECES = ["p", "n", "b", "r", "q", "k"];
-    let fen = '';
+    let fen = "";
     let emptyCount = 0;
 
     // itera sobre as 8 linhas do tabuleiro
@@ -951,13 +996,44 @@ function generateFEN() {
         }
     }
 
-    // Adiciona a cor do jogador que deve jogar
-    fen += currentTurn === WHITE ? " w" : " b";
+    // Adiciona o turno atual a FEN
+    fen += currentTurn === WHITE ? " w " : " b ";
+
+    // Obtem as possibilidades de roque
+    fen += getCastlingFEN();
+
+    // Verifica se existe a possibilidade de captura en passant
+    if (enPassant !== null) {
+        // converte a posição en passant para a notação FEN
+        const LETTERS = ["a", "b", "c", "d", "e", "f", "g", "h"];
+        let y = LETTERS[7 - (enPassant % 8)];
+        let x = 1 + Math.trunc(enPassant / 8);
+        // Adiciona a posição de captura do en passant ao FEN
+        x += currentTurn === WHITE ? 1 : -1;
+        fen += " " + y + x + " ";
+    } else {
+        fen += " - ";
+    }
+
+    // Contador de meios movimentos
+    fen += halfMoves + " ";
+    // Adiciona o número de jogadas completas
+    fen += fullMoves;
 
     return fen;
 }
 
 function updateFEN() {
-    const FEN = generateFEN();
-    document.getElementById("fen").value = FEN;
+    currentFEN = generateFEN();
+    document.getElementById("fen").value = currentFEN;
+}
+
+// Verificação do estado dos roques disponíveis
+function getCastlingFEN() {
+    let result = '';
+    if (availableCastling & WHITE_ROOK_KINGSIDE) result += 'K';
+    if (availableCastling & WHITE_ROOK_QUEENSIDE) result += 'Q';
+    if (availableCastling & BLACK_ROOK_KINGSIDE) result += 'k';
+    if (availableCastling & BLACK_ROOK_QUEENSIDE) result += 'q';
+    return result || '-';
 }
