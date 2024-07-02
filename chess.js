@@ -314,24 +314,20 @@ function movePiece() {
             bitboards[WHITE].map(bitboard => BigInt(bitboard)), // Copia o array de peças brancas
             bitboards[BLACK].map(bitboard => BigInt(bitboard))  // Copia o array de peças pretas
         ];
-
-        // Remove a posição de origem da peça
-        savedState[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
-
+        // Obtem a cor do oponente
+        const OPPONENT_COLOR = selectedColor === WHITE ? BLACK : WHITE;
         // Mascara de bits para a nova posição da peça
         let toMask = 1n << BigInt(toPosition);
+        // Remove a posição de origem da peça
+        savedState[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
         // Adiciona a nova posição da peça
         savedState[selectedColor][selectedPiece] |= toMask;
 
         // Incrementa os meios movimentos
         halfMoves++;
 
-        // Obtem a cor do oponente
-        const OPPONENT_COLOR = selectedColor === WHITE ? BLACK : WHITE;
-
         // Iteração nas bitboards adversárias, para verificar se a peça adversária foi capturada
         for (let opponentPiece = 0; opponentPiece < 6; opponentPiece++) {
-
             if (savedState[OPPONENT_COLOR][opponentPiece] & toMask) {
                 // Remove a peça adversária
                 savedState[OPPONENT_COLOR][opponentPiece] &= ~toMask;
@@ -341,7 +337,7 @@ function movePiece() {
                     FAILURE_SOUND.play();
                     // Volta no estado anterior das peças
                     updateAllPieces(bitboards);
-                    // Volta a contagem inicial dos meio movimentos
+                    // Desfaz o incremento dos meios movimentos
                     halfMoves--;
                     return;
                 }
@@ -351,46 +347,114 @@ function movePiece() {
                 halfMoves = 0;
             }
         }
-        if (selectedPiece === PAWN) {
+        
+        switch (selectedPiece) {
+            case PAWN:
+                // Obtem os peões adversários
+                const OPPONENT_PAWNS = selectedColor === WHITE ? savedState[BLACK][PAWN] : savedState[WHITE][PAWN];
+                const CAPTURE_LEFT = selectedColor === WHITE ? fromPosition + 9 : fromPosition - 9;
+                const CAPTURE_RIGHT = selectedColor === WHITE ? fromPosition + 7 : fromPosition - 7;
 
-            // Obtem os peões adversários
-            const OPPONENT_PAWNS = selectedColor === WHITE ? savedState[BLACK][PAWN] : savedState[WHITE][PAWN];
-            const CAPTURE_LEFT = selectedColor === WHITE ? fromPosition + 9 : fromPosition - 9;
-            const CAPTURE_RIGHT = selectedColor === WHITE ? fromPosition + 7 : fromPosition - 7;
-
-            // Verifica se o peão foi capturado pelo movimento en passant
-            if ((enPassant !== null) && (toPosition === CAPTURE_LEFT || toPosition === CAPTURE_RIGHT)
-                && (OPPONENT_PAWNS & (1n << BigInt(enPassant)))) {
-                // remove o peão capturado
-                savedState[OPPONENT_COLOR][PAWN] &= ~(1n << BigInt(enPassant));
-                // Verifica se o movimento é ilegal
-                if (isIllegalMove(savedState)) {
-                    // Efeito sonoro de movimento inválido
-                    FAILURE_SOUND.play();
-                    // Volta no estado anterior das peças
-                    updateAllPieces(bitboards);
-                    return;
+                // Verifica se o peão foi capturado pelo movimento en passant
+                if ((enPassant !== null) && (toPosition === CAPTURE_LEFT || toPosition === CAPTURE_RIGHT)
+                    && (OPPONENT_PAWNS & (1n << BigInt(enPassant)))) {
+                    // remove o peão capturado
+                    savedState[OPPONENT_COLOR][PAWN] &= ~(1n << BigInt(enPassant));
+                    // Verifica se o movimento é ilegal
+                    if (isIllegalMove(savedState)) {
+                        // Efeito sonoro de movimento inválido
+                        FAILURE_SOUND.play();
+                        // Volta no estado anterior das peças
+                        updateAllPieces(bitboards);
+                        return;
+                    }
+                    // Efeito sonoro de captura
+                    CAPTURE_SOUND.play();
                 }
-                // Efeito sonoro de captura
-                CAPTURE_SOUND.play();
-            }
 
-            // Verifica se o peão avançou duas casas em seu primeiro movimento
-            if (Math.abs(fromPosition - toPosition) === 16) {
-                // Verifica se existe um peão adversário do lado esquerdo ou direito
-                if ((OPPONENT_PAWNS & (1n << BigInt(toPosition - 1)) && toPosition > 24) ||
-                    (OPPONENT_PAWNS & (1n << BigInt(toPosition + 1)) && toPosition < 39)) {
-                    // marca o própio peão para ser capturado pelo movimento en passant
-                    enPassant = toPosition;
+                // Verifica se o peão avançou duas casas em seu primeiro movimento
+                if (Math.abs(fromPosition - toPosition) === 16) {
+                    // Verifica se existe um peão adversário do lado esquerdo ou direito
+                    if ((OPPONENT_PAWNS & (1n << BigInt(toPosition - 1)) && toPosition > 24) ||
+                        (OPPONENT_PAWNS & (1n << BigInt(toPosition + 1)) && toPosition < 39)) {
+                        // marca o própio peão para ser capturado pelo movimento en passant
+                        enPassant = toPosition;
+                    } else {
+                        // Desmarca o peão que pode ser capturado en passant
+                        enPassant = null;
+                    }
                 } else {
-                    // Desmarca o peão que pode ser capturado en passant
                     enPassant = null;
                 }
-            } else {
-                enPassant = null;
-            }
-            halfMoves = 0;
+                halfMoves = 0;
+                break;
+            case KING:
+                // Verifica se o movimento coloca o rei em xeque na posição final
+                if (isIllegalMove(savedState)) {
+                    FAILURE_SOUND.play();
+                    updateAllPieces(bitboards);
+                    // Desfaz o incremento dos meios movimentos
+                    halfMoves--;
+                    return;
+                }
+
+                // verifica se o movimento foi um roque
+                if (Math.abs(fromPosition - toPosition) === 2) {
+
+                    // adicionar rei na posição intermediaria
+                    if ((1n << BigInt(toPosition)) & WHITE_ROOK_QUEENSIDE) {
+                        //roque grande
+                        console.log("WHITE_ROOK_QUEENSIDE");
+                    }
+                    else if ((1n << BigInt(toPosition)) & WHITE_ROOK_KINGSIDE) {
+                        // roque pequeno
+                        console.log("WHITE_ROOK_KINGSIDE");
+                    }
+                    else if ((1n << BigInt(toPosition)) & BLACK_ROOK_QUEENSIDE) {
+                        // roque grande
+                        console.log("BLACK_ROOK_QUEENSIDE");
+                    }
+                    else if ((1n << BigInt(toPosition)) & BLACK_ROOK_KINGSIDE) {
+                        // roque pequeno
+                    }
+
+                    // verificar se o movimento é ilegal
+                    if (isIllegalMove(savedState)) {
+                        FAILURE_SOUND.play();
+                        updateAllPieces(bitboards);
+                        // Desfaz o incremento dos meios movimentos
+                        halfMoves--;
+                        return;
+                    }
+                }
+
+                if (selectedColor === WHITE) {
+                    availableCastling &= ~(WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE); // Remove KQ
+                } else {
+                    availableCastling &= ~(BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE); // Remove kq
+                }
+
+                break;
+            case ROOK:
+                if (1n << BigInt(fromPosition) & availableCastling) {
+                    switch (1n << BigInt(fromPosition)) {
+                        case WHITE_ROOK_QUEENSIDE:
+                            availableCastling &= ~WHITE_ROOK_QUEENSIDE; // Remove Q
+                            break;
+                        case WHITE_ROOK_KINGSIDE:
+                            availableCastling &= ~WHITE_ROOK_KINGSIDE; // Remove K
+                            break;
+                        case BLACK_ROOK_QUEENSIDE:
+                            availableCastling &= ~BLACK_ROOK_QUEENSIDE; // Remove q
+                            break;
+                        case BLACK_ROOK_KINGSIDE:
+                            availableCastling &= ~BLACK_ROOK_KINGSIDE; // Remove k
+                            break;
+                    }
+                }
+                break;
         }
+
         // Efeito sonoro de movimento
         MOVE_SOUND.play();
 
@@ -400,51 +464,25 @@ function movePiece() {
             CHECK_SOUND.play();
         }
 
-        // Verifica o roque
-        if (selectedPiece === KING) {
-            if (selectedColor === WHITE) {
-                availableCastling &= ~(WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE); // Remove KQ
-            } else {
-                availableCastling &= ~(BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE); // Remove kq
-            }
-        } else if (selectedPiece === ROOK) {
-            switch (1n << BigInt(fromPosition)) {
-                case WHITE_ROOK_QUEENSIDE:
-                    availableCastling &= ~WHITE_ROOK_QUEENSIDE; // Remove Q
-                    break;
-                case WHITE_ROOK_KINGSIDE:
-                    availableCastling &= ~WHITE_ROOK_KINGSIDE ; // Remove K
-                    break;
-                case BLACK_ROOK_QUEENSIDE:
-                    availableCastling &= ~BLACK_ROOK_QUEENSIDE; // Remove q
-                    break;
-                case BLACK_ROOK_KINGSIDE:
-                    availableCastling &= ~BLACK_ROOK_KINGSIDE; // Remove k
-                    break;
-            }
+        // Contagem das jogadas completas
+        if (currentTurn === BLACK) {
+            fullMoves++;
         }
+
+        // Atualiza o turno
+        currentTurn = currentTurn === WHITE ? BLACK : WHITE;
+
+        // Atualiza a FEN
+        updateFEN();
 
         // Atualiza o estado do tabuleiro
         bitboards = savedState;
-    }
-    else {
+
+    } else {
         // Efeito sonoro de movimento inválido
         FAILURE_SOUND.play();
         return;
     }
-
-
-
-    // Contagem das jogadas completas
-    if (currentTurn === BLACK) {
-        fullMoves++;
-    }
-
-    // Atualiza o turno
-    currentTurn = currentTurn === WHITE ? BLACK : WHITE;
-
-    // Atualiza a FEN
-    updateFEN();
 }
 
 // Função auxiliar para transformar a peça em elemento HTML
