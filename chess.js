@@ -12,9 +12,20 @@
 // });
 // stockfish.postMessage('uci');
 
-// Constantes para as peças
-const PAWN = 0, KNIGHT = 1, BISHOP = 2, ROOK = 3, QUEEN = 4, KING = 5;
-const WHITE = 0, BLACK = 1;
+// Importação das constantes
+import { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING } from './constants/pieces.js';
+import { WHITE, BLACK, PIECES_STRING } from './constants/colors.js';
+import { NOT_1_RANK, NOT_8_RANK, NOT_A_FILE, NOT_H_FILE } from './constants/edges.js';
+import { WHITE_ROOK_KINGSIDE, WHITE_ROOK_QUEENSIDE, BLACK_ROOK_KINGSIDE, BLACK_ROOK_QUEENSIDE } from './constants/castling.js';
+import { CAPTURE_SOUND, CHECK_SOUND, FAILURE_SOUND, MOVE_SOUND } from './constants/sounds.js';
+
+// Importação das funções
+import { getPawnMoves } from './moves/pawn.js';
+import { getRookMoves } from './moves/rook.js';
+import { getKnightMoves } from './moves/knight.js';
+import { getBishopMoves } from './moves/bishop.js';
+import { getQueenMoves } from './moves/queen.js';
+import { getKingMoves } from './moves/king.js';
 
 /**
     @Bitboard
@@ -106,91 +117,6 @@ let halfMoves = 0; // Contagem de 100 movimentos sem captura ou movimento de pe�
 let fullMoves = 1; // Número total de movimentos completos
 let kingCheckPosition = null; // Posição do rei em xeque
 
-/**
-        @MASCARAS_PARA_AS_BORDAS_DO_TABULEIRO
-
-        @const NOT_H_FILE
-        @hex 0xFEFEFEFEFEFEFEFE
-        @bin 11111110 11111110 11111110 11111110 11111110 11111110 1111111 011111110
-
-        a b c d e f g h
- 
-        1 1 1 1 1 1 1 0   8
-        1 1 1 1 1 1 1 0   7
-        1 1 1 1 1 1 1 0   6
-        1 1 1 1 1 1 1 0   5
-        1 1 1 1 1 1 1 0   4
-        1 1 1 1 1 1 1 0   3
-        1 1 1 1 1 1 1 0   2
-        1 1 1 1 1 1 1 0   1
-
-        @const NOT_A_FILE
-        @hex 0x7F7F7F7F7F7F7F7F
-        @bin 01111111 01111111 01111111 01111111 01111111 01111111 01111111 01111111
-
-        a b c d e f g h
-
-        0 1 1 1 1 1 1 1   8
-        0 1 1 1 1 1 1 1   7
-        0 1 1 1 1 1 1 1   6
-        0 1 1 1 1 1 1 1   5
-        0 1 1 1 1 1 1 1   4
-        0 1 1 1 1 1 1 1   3
-        0 1 1 1 1 1 1 1   2
-        0 1 1 1 1 1 1 1   1
-
-        @const NOT_8_RANK
-        @hex 0x00FFFFFFFFFFFFFF
-        @bin 00000000 11111111 11111111 11111111 11111111 11111111 11111111 11111111
-
-        a b c d e f g h
-
-        0 0 0 0 0 0 0 0    8    
-        1 1 1 1 1 1 1 1    7
-        1 1 1 1 1 1 1 1    6
-        1 1 1 1 1 1 1 1    5
-        1 1 1 1 1 1 1 1    4
-        1 1 1 1 1 1 1 1    3
-        1 1 1 1 1 1 1 1    2
-        1 1 1 1 1 1 1 1    1
-
-
-        @const NOT_1_RANK
-        @hex 0xFFFFFFFFFFFFFF00
-        @bin 11111111 11111111 11111111 11111111 11111111 11111111 11111111 00000000
-
-        a b c d e f g h
-
-        1 1 1 1 1 1 1 1    8
-        1 1 1 1 1 1 1 1    7
-        1 1 1 1 1 1 1 1    6
-        1 1 1 1 1 1 1 1    5
-        1 1 1 1 1 1 1 1    4
-        1 1 1 1 1 1 1 1    3
-        1 1 1 1 1 1 1 1    2
-        0 0 0 0 0 0 0 0    1
-
-*/
-
-// Mascaras para as bordas do tabuleiro
-const NOT_A_FILE = 0x7F7F7F7F7F7F7F7Fn; // Máscara para eliminar a coluna A
-const NOT_H_FILE = 0xFEFEFEFEFEFEFEFEn; // Máscara para eliminar a coluna H
-const NOT_1_RANK = 0xFFFFFFFFFFFFFF00n; // Máscara para eliminar a linha 1
-const NOT_8_RANK = 0x00FFFFFFFFFFFFFFn; // Máscara para eliminar a linha 8
-
-// Efeitos sonoros
-const MOVE_SOUND = new Audio("./sounds/move.mp3");
-const CAPTURE_SOUND = new Audio("./sounds/capture.mp3");
-const FAILURE_SOUND = new Audio("./sounds/failure.mp3");
-const CHECK_SOUND = new Audio("./sounds/check.mp3");
-// const CASTLING_SOUND = new Audio("./sounds/castling.mp3");
-// const END_SOUND = new Audio("./sounds/end.mp3");
-
-// Máscaras para os tipos de roque
-const WHITE_ROOK_KINGSIDE = 0x0000000000000001n;
-const WHITE_ROOK_QUEENSIDE = 0x0000000000000080n;
-const BLACK_ROOK_KINGSIDE = 0x0100000000000000n;
-const BLACK_ROOK_QUEENSIDE = 0x8000000000000000n;
 let availableCastling = WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE | BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE;
 
 // Inicializa o tabuleiro de xadrez com as posições iniciais das peças.
@@ -295,7 +221,6 @@ function initializeBoard() {
  
 */
 function movePiece() {
-
     // Cor da peça adversária
     const OPPONENT_COLOR = selectedColor === WHITE ? BLACK : WHITE;
     // Bitboards das peças adversárias
@@ -460,8 +385,7 @@ function movePiece() {
 
 // Função auxiliar para transformar a peça em elemento HTML
 function pieceToString(piece, color) {
-    const pieces = ["pawn", "knight", "bishop", "rook", "queen", "king"];
-    return (color === WHITE ? "white_" : "black_") + pieces[piece];
+    return (color === WHITE ? "white_" : "black_") + PIECES_STRING[piece];
 }
 
 /**
@@ -590,7 +514,7 @@ function handleSquareClick(event) {
                     // Verifica os movimentos possíveis para a peça selecionada
                     switch (selectedPiece) {
                         case PAWN:
-                            availableMoves = getPawnMoves(fromPosition, selectedColor, bitboards);
+                            availableMoves = getPawnMoves(fromPosition, selectedColor, bitboards, enPassant);
                             break;
                         case ROOK:
                             availableMoves = getRookMoves(fromPosition, selectedColor, bitboards);
@@ -637,282 +561,6 @@ function handleSquareClick(event) {
 // Inicializa o tabuleiro e renderiza
 initializeBoard();
 renderBoard();
-
-function getPawnMoves(from, color, bitboards) {
-
-    let bitboardMoves = 0n;
-
-    // Variáveis comuns
-    const BLACK_PIECES = bitboards[BLACK][PAWN] | bitboards[BLACK][KNIGHT] | bitboards[BLACK][BISHOP] | bitboards[BLACK][ROOK]
-        | bitboards[BLACK][QUEEN] | bitboards[BLACK][KING];
-    const WHITE_PIECES = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] | bitboards[WHITE][ROOK]
-        | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
-    const OWN_PIECES = color === WHITE ? WHITE_PIECES : BLACK_PIECES;
-    const OPPONENT_PIECES = color === WHITE ? BLACK_PIECES : WHITE_PIECES;
-    const ADVANCE = color === WHITE ? 8n : -8n;
-    const DOUBLE_ADVANCE = color === WHITE ? 16n : -16n;
-    const START_ROWS = 0x00FF00000000FF00n;
-
-    // Movimento de avanço simples
-    let movement = 1n << (BigInt(from) + ADVANCE);
-    // Verifica se a casa está vazia
-    if (!(OPPONENT_PIECES & movement || (OWN_PIECES & movement))) {
-        bitboardMoves |= movement;
-    }
-
-    // Movimento de avanço duplo
-    movement = 1n << (BigInt(from) + DOUBLE_ADVANCE);
-    // Verifica se o peão está nas linhas iniciais
-    if (START_ROWS & (1n << BigInt(from))) {
-        let middleSquare = 1n << (BigInt(from) + ADVANCE);
-        // Verifica se a casa intermediaria e final estão vazias
-        if (!(OPPONENT_PIECES & middleSquare || OWN_PIECES & middleSquare) && !(OPPONENT_PIECES & movement || OWN_PIECES & movement)) {
-            bitboardMoves |= movement;
-        }
-    }
-
-    // Movimentos de captura
-    let captureLeft = color === WHITE ? ((1n << BigInt(from)) << 9n) : ((1n << BigInt(from)) >> 9n);
-    let captureRight = color === WHITE ? ((1n << BigInt(from)) << 7n) : ((1n << BigInt(from)) >> 7n);
-
-    // Verifica a captura para a direita
-    if (captureLeft & OPPONENT_PIECES) {
-        bitboardMoves |= captureLeft;
-    }
-
-    // Verifica a captura para a esquerda
-    if (captureRight & OPPONENT_PIECES) {
-        bitboardMoves |= captureRight;
-    }
-
-    // Movimento de captura en passant
-    if (enPassant !== null) {
-
-        // Posicoes laterais
-        let p1 = color === WHITE ? from + 1 : from - 1;
-        let p2 = color === WHITE ? from - 1 : from + 1;
-
-        // se a posição lateral s1 for igual a do peão marcado para captura en passant
-        if (p1 === enPassant) {
-            bitboardMoves |= captureLeft;
-        }
-        // se a posição lateral s2 for igual a do peão marcado para captura en passant
-        else if (p2 === enPassant) {
-            bitboardMoves |= captureRight;
-        }
-    }
-
-    return bitboardMoves;
-}
-
-function getRookMoves(from, color, bitboards) {
-
-    let bitboardMoves = 0n;
-    const BLACK_PIECES = bitboards[BLACK][PAWN] | bitboards[BLACK][KNIGHT] | bitboards[BLACK][BISHOP] | bitboards[BLACK][ROOK] | bitboards[BLACK][QUEEN] | bitboards[BLACK][KING];
-    const WHITE_PIECES = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] | bitboards[WHITE][ROOK] | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
-    const OWN_PIECES = color === WHITE ? WHITE_PIECES : BLACK_PIECES;
-    const OPPONENT_PIECES = color === WHITE ? BLACK_PIECES : WHITE_PIECES;
-
-    /**
-            @EXEMPLO_DE_MOVIMENTO_TORRE
-
-            from: 16 (h3)
-
-            a b c d e f g h
-    
-            0 0 0 0 0 0 0 0   8
-            0 0 0 0 0 0 0 0   7
-            0 0 0 0 0 0 0 0   6   
-            0 0 0 0 0 0 0 0   5
-            0 0 0 0 0 0 0 0   4
-            0 0 0 0 0 0 0 1   3   ---> h3
-            0 0 0 0 0 0 0 0   2
-            0 0 0 0 0 0 0 0   1
-            
-            // desloca todos os bits para a esquerda 7 vezes
-            (1n << BigInt(16)) <<= 7n 
-
-            a b c d e f g h
-    
-            0 0 0 0 0 0 0 0   8
-            0 0 0 0 0 0 0 0   7
-            0 0 0 0 0 0 0 0   6   
-            0 0 0 0 0 0 0 0   5
-            0 0 0 0 0 0 0 0   4
-            1 0 0 0 0 0 0 0   3   ---> a3
-            0 0 0 0 0 0 0 0   2
-            0 0 0 0 0 0 0 0   1
-
-            // desloca todos os bits para a direita 8 vezes
-            (1n << BigInt(16)) >>= 8n
-
-            a b c d e f g h
-    
-            0 0 0 0 0 0 0 0   8
-            0 0 0 0 0 0 0 0   7
-            0 0 0 0 0 0 0 0   6   
-            0 0 0 0 0 0 0 0   5
-            0 0 0 0 0 0 0 0   4
-            0 0 0 0 0 0 0 0   3   
-            1 0 0 0 0 0 0 0   2   ---> a2
-            0 0 0 0 0 0 0 0   1 
-    */
-
-    let movement;
-
-    // Movimentos para a esquerda
-    movement = 1n << BigInt(from);
-    while (movement & NOT_A_FILE) {
-        movement <<= 1n; // deslocamento para esquerda
-        if (movement & OWN_PIECES) break; // se tiver uma peça aliada, para o movimento
-        bitboardMoves |= movement; // adiciona o movimento ao bitboard
-        if (movement & OPPONENT_PIECES) break; // captura e para o movimento
-    }
-
-    // Movimentos para a direita
-    movement = 1n << BigInt(from);
-    while (movement & NOT_H_FILE) {
-        movement >>= 1n; // deslocamento para direita
-        if (movement & OWN_PIECES) break;
-        bitboardMoves |= movement;
-        if (movement & OPPONENT_PIECES) break;
-    }
-
-    // Movimentos para cima
-    movement = 1n << BigInt(from);
-    while (movement & NOT_8_RANK) {
-        movement <<= 8n; // deslocamento para esquerda
-        if (movement & OWN_PIECES) break;
-        bitboardMoves |= movement;
-        if (movement & OPPONENT_PIECES) break;
-    }
-
-    // Movimentos para baixo
-    movement = 1n << BigInt(from);
-    while (movement & NOT_1_RANK) {
-        movement >>= 8n; // deslocamento para direita
-        if (movement & OWN_PIECES) break;
-        bitboardMoves |= movement;
-        if (movement & OPPONENT_PIECES) break;
-    }
-
-    return bitboardMoves;
-}
-
-function getKnightMoves(from, color, bitboards) {
-    let bitboardMoves = 0n;
-
-    const BLACK_PIECES = bitboards[BLACK][PAWN] | bitboards[BLACK][KNIGHT] | bitboards[BLACK][BISHOP] | bitboards[BLACK][ROOK] | bitboards[BLACK][QUEEN] | bitboards[BLACK][KING];
-    const WHITE_PIECES = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] | bitboards[WHITE][ROOK] | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
-    const OWN_PIECES = color === WHITE ? WHITE_PIECES : BLACK_PIECES;
-    const KNIGHT_MOVES = [17, 15, 10, 6, -6, -10, -15, -17];
-
-    for (let move of KNIGHT_MOVES) {
-        // Calcula a posição do movimento
-        let movement = from + move;
-        // Verificação de borda para evitar saidas do tabuleiro
-        if (movement >= 0 && movement < 64) {
-            if (Math.abs((from % 8) - (movement % 8)) <= 2) {
-                if (!(OWN_PIECES & (1n << BigInt(movement)))) {
-                    bitboardMoves |= 1n << BigInt(movement);
-                }
-            }
-        }
-    }
-    return bitboardMoves;
-}
-
-function getBishopMoves(from, color, bitboards) {
-
-    let bitboardMoves = 0n;
-    const BLACK_PIECES = bitboards[BLACK][PAWN] | bitboards[BLACK][KNIGHT] | bitboards[BLACK][BISHOP] | bitboards[BLACK][ROOK] | bitboards[BLACK][QUEEN] | bitboards[BLACK][KING];
-    const WHITE_PIECES = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] | bitboards[WHITE][ROOK] | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
-    const OWN_PIECES = color === WHITE ? WHITE_PIECES : BLACK_PIECES;
-    const OPPONENT_PIECES = color === WHITE ? BLACK_PIECES : WHITE_PIECES;
-
-    /**
-
-    from: 18 (f3)
-
-    a b c d e f g h
-    
-    0 0 0 0 0 0 0 0   8
-    0 0 0 0 0 0 0 0   7
-    0 0 0 0 0 0 0 0   6   
-    0 0 0 0 0 0 0 0   5
-    0 0 0 0 0 0 0 0   4
-    0 0 0 0 0 1 0 0   3   
-    0 0 0 0 0 0 0 0   2
-    0 0 0 0 0 0 0 0   1 
- 
-    */
-
-    let movement;
-    // Movimentos para a diagonal superior esquerda do bitboard
-    movement = 1n << BigInt(from);
-    while (movement & (NOT_A_FILE & NOT_8_RANK)) {
-        movement <<= 9n; // deslocamento para diagonal superior esquerda
-        if (movement & OWN_PIECES) break;
-        bitboardMoves |= movement;
-        if (movement & OPPONENT_PIECES) break;
-    }
-
-    // Movimentos para a diagonal superior direita do bitboard
-    movement = 1n << BigInt(from);
-    while (movement & (NOT_H_FILE & NOT_8_RANK)) {
-        movement <<= 7n; // deslocamento para diagonal superior direita 
-        if (movement & OWN_PIECES) break;
-        bitboardMoves |= movement;
-        if (movement & OPPONENT_PIECES) break;
-    }
-
-    // Movimentos para a diagonal inferior esquerda do bitboard
-    movement = 1n << BigInt(from);
-    while (movement & (NOT_A_FILE & NOT_1_RANK)) {
-        movement >>= 7n; // deslocamento para diagonal inferior esquerda
-        if (movement & OWN_PIECES) break;
-        bitboardMoves |= movement;
-        if (movement & OPPONENT_PIECES) break;
-    }
-
-    // Movimentos para a diagonal inferior direita do bitboard
-    movement = 1n << BigInt(from);
-    while (movement & (NOT_H_FILE & NOT_1_RANK)) {
-        movement >>= 9n; // deslocamento para diagonal inferior direita
-        if (movement & OWN_PIECES) break;
-        bitboardMoves |= movement;
-        if (movement & OPPONENT_PIECES) break;
-    }
-    return bitboardMoves;
-}
-
-function getQueenMoves(from, color, bitboards) {
-    return getRookMoves(from, color, bitboards) | getBishopMoves(from, color, bitboards);
-}
-
-function getKingMoves(from, color, bitboards) {
-
-    let bitboardMoves = 0n;
-    const BLACK_PIECES = bitboards[BLACK][PAWN] | bitboards[BLACK][KNIGHT] | bitboards[BLACK][BISHOP] | bitboards[BLACK][ROOK] | bitboards[BLACK][QUEEN] | bitboards[BLACK][KING];
-    const WHITE_PIECES = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] | bitboards[WHITE][ROOK] | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
-    const OWN_PIECES = color === WHITE ? WHITE_PIECES : BLACK_PIECES;
-    const kingMoves = [1, -1, 8, -8, 7, -7, 9, -9];
-    for (let move of kingMoves) {
-        // Calcula a posição do movimento
-        let movement = from + move;
-        // Verificação de borda para evitar saidas do tabuleiro
-        if (movement >= 0 && movement < 64) {
-            if (Math.abs((from % 8) - (movement % 8)) <= 1) {
-                if (!(OWN_PIECES & (1n << BigInt(movement)))) {
-                    bitboardMoves |= 1n << BigInt(movement);
-                }
-            }
-        }
-    }
-    // Movimento de roque
-
-    return bitboardMoves;
-}
 
 /**
     @FEN (Forsyth-Edwards Notation)
@@ -1054,7 +702,7 @@ function getAllMoves(color, bitboards) {
             if (bitboard & (1n << BigInt(i))) {
                 switch (piece) {
                     case PAWN:
-                        moves |= getPawnMoves(i, color, bitboards);
+                        moves |= getPawnMoves(i, color, bitboards, enPassant);
                         break;
                     case ROOK:
                         moves |= getRookMoves(i, color, bitboards);
@@ -1124,9 +772,11 @@ function isPinned(fromPosition) {
                 }
             }
         }
+        // Verifica se a peça cravada pode capturar quem ta atacando o rei
         switch (selectedPiece) {
             case PAWN:
-                return (positionAttackerMask & getPawnMoves(fromPosition, selectedColor, tempBitboards)) === 0n;
+                // Não existe a possibilidade de captura com en passant para descravar o peão
+                return (positionAttackerMask & getPawnMoves(fromPosition, selectedColor, tempBitboards, null)) === 0n;
             case ROOK:
                 return (positionAttackerMask & getRookMoves(fromPosition, selectedColor, tempBitboards)) === 0n;
             case KNIGHT:
@@ -1170,15 +820,4 @@ function isKingInCheck(bitboards, color) {
         return true;
     }
     return false;
-}
-
-function renderAvailableMoves() {
-    document.querySelectorAll(".square").forEach(square => {
-        square.classList.remove("available");
-    });
-    for (let i = 0; i < 64; i++) {
-        if (availableMoves & (1n << BigInt(i))) {
-            document.querySelector(`[data-index="${i}"]`).classList.add("available");
-        }
-    }
 }
