@@ -25,13 +25,14 @@ body {
 }
 
 .fen-section {
-    margin-top: 20px;;
+    margin-top: 20px;
+    ;
     display: flex;
-    align-items: center; 
+    align-items: center;
 }
 
 input {
-    margin-left: 10px; 
+    margin-left: 10px;
     width: 708px;
     padding: 10px;
     font-size: 18px;
@@ -56,6 +57,28 @@ input {
 
 .check {
     background-color: tomato;
+}
+
+.available {
+    position: relative;
+}
+
+.available::after {
+    content: '';
+    display: block;
+    width: 50%;
+    height: 50%;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.5);
+    position: absolute;
+    top: 25%;
+    left: 25%;
+    z-index: 1;
+}
+
+.capture {
+    position: relative;
+    border-radius: 25px;
 }
 
 .piece {

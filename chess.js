@@ -471,14 +471,31 @@ function renderBoard() {
         let row = document.createElement("tr"); // table row
         // Iteração das colunas
         for (let file = 7; file >= 0; file--) {
+            const index = rank * 8 + file; // index do quadrado
             let square = document.createElement("td"); // table data
-            square.className = (rank + file) % 2 === 0 ? "white" : "black"; // alternância de cores
             if (kingCheckPosition === rank * 8 + file) {
                 square.className = "check";
             }
-            const index = rank * 8 + file; // index do quadrado
+            else {
+                square.className = (rank + file) % 2 === 0 ? "white" : "black"; // alternância de cores
+            }
+
+            // Adiciona a decoração dos movimentos possíveis
+            if (availableMoves & (1n << BigInt(index))) {
+                const OPPONENT_COLOR = selectedColor === WHITE ? BLACK : WHITE;
+                const OPPONENT_PIECES = bitboards[OPPONENT_COLOR][PAWN] | bitboards[OPPONENT_COLOR][KNIGHT] | bitboards[OPPONENT_COLOR][BISHOP]
+                    | bitboards[OPPONENT_COLOR][ROOK] | bitboards[OPPONENT_COLOR][QUEEN] | bitboards[OPPONENT_COLOR][KING];
+                if (OPPONENT_PIECES & (1n << BigInt(index))) {
+                    square.classList.add("capture");
+                }
+                else
+                {
+                    square.classList.add("available");
+                }
+            }
+
             square.dataset.index = index; // armazena o index do quadrado
-            square.addEventListener("click", handlesquareClick); // adiciona o evento de clique
+            square.addEventListener("click", handleSquareClick); // adiciona o evento de clique
             row.appendChild(square); // adiciona a quadrado na linha
         }
         boardElement.appendChild(row); // adiciona a linha ao tabuleiro
@@ -524,7 +541,7 @@ function addPieceToBoard(index, piece, color) {
 }
 
 // Função para lidar com o clique na casa (quadrado) do tabuleiro
-function handlesquareClick(event) {
+function handleSquareClick(event) {
     // Obtem o index do quadrado clicado
     const index = parseInt(event.currentTarget.dataset.index);
     // Verifica se a peça ainda não foi selecionada
@@ -543,29 +560,14 @@ function handlesquareClick(event) {
                     selectedColor = color;
                     fromPosition = index;
 
-                    // Marca a casa selecionada
-                    event.currentTarget.classList.add("selected");
-
-
-                    ////////////////////////////////////////////////////////////////////////////////
-                    //      Corrigir a lógica para verificar se a peça está cravada (pinned)      //
-                    ////////////////////////////////////////////////////////////////////////////////
-                    // Quando a peça está cravada e tem possibilidade de capturar, ocorre bug     //
-                    // ela nao consegue capturar a peça que está atacando                         //
-                    // e ao tentar mover ela, o movimento é bloqueado e a casa do rei muda de cor //
-                    ////////////////////////////////////////////////////////////////////////////////
-
                     if (isKingInCheck(bitboards, selectedColor)) {
-                        console.log("Rei em xeque!");
+                        // verifica se é xeque mate
                     }
                     else if (isPinned(fromPosition)) {
-                        console.log("Está cravada na posição: " + fromPosition);
                         selectedPiece = null;
                         selectedColor = null;
                         fromPosition = null;
                         availableMoves = 0n;
-                        // Remove a marcação do quadrado selecionado
-                        document.querySelectorAll(".selected").forEach(square => square.classList.remove("selected"));
                         return;
                     }
 
@@ -573,7 +575,7 @@ function handlesquareClick(event) {
                     switch (selectedPiece) {
                         case PAWN:
                             availableMoves = getPawnMoves(fromPosition, selectedColor, bitboards);
-                            return;
+                            break;
                         case ROOK:
                             availableMoves = getRookMoves(fromPosition, selectedColor, bitboards);
                             break;
@@ -593,7 +595,6 @@ function handlesquareClick(event) {
                             console.log("Piece not found!");
                             break;
                     }
-                    return;
                 }
             }
         }
@@ -613,12 +614,8 @@ function handlesquareClick(event) {
         selectedColor = null;
         toPosition = null;
         availableMoves = 0n;
-        // Remove a marcação do quadrado selecionado
-        document.querySelectorAll(".selected").forEach(square => square.classList.remove("selected"));
-
-        // Renderiza as novas posições das peças
-        renderBoard();
     }
+    renderBoard();
 }
 
 // Inicializa o tabuleiro e renderiza
@@ -1111,10 +1108,6 @@ function isPinned(fromPosition) {
                 }
             }
         }
-
-        // console.log("positionAttackerMask:");
-        // console.log(positionAttackerMask.toString(2).padStart(64, '0').match(/.{8}/g).join('\n'));
-
         switch (selectedPiece) {
             case PAWN:
                 return (positionAttackerMask & getPawnMoves(fromPosition, selectedColor, tempBitboards)) === 0n;
@@ -1131,6 +1124,7 @@ function isPinned(fromPosition) {
     return false;
 }
 function isIllegalMove() {
+    const OPPONENT_COLOR = selectedColor === WHITE ? BLACK : WHITE;
     // Copia o estado atual das peças
     let tempBitboards = [
         bitboards[WHITE].map(bitboard => BigInt(bitboard)),
@@ -1140,6 +1134,10 @@ function isIllegalMove() {
     tempBitboards[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
     // Adiciona na nova posição
     tempBitboards[selectedColor][selectedPiece] |= 1n << BigInt(toPosition);
+    // remove a peça adversária da posição de destino
+    for (let p = 0; p < 6; p++) {
+        tempBitboards[OPPONENT_COLOR][p] &= ~(1n << BigInt(toPosition));
+    }
     // Retorna verdadeiro se o rei estiver em xeque
     return isKingInCheck(tempBitboards, selectedColor);
 }
@@ -1147,7 +1145,6 @@ function isIllegalMove() {
 // Verifica se o rei está em xeque
 function isKingInCheck(bitboards, color) {
     const OPPONENT_COLOR = color === WHITE ? BLACK : WHITE;
-
     if (bitboards[color][KING] & getAllMoves(OPPONENT_COLOR, bitboards)) {
         for (let i = 0; i < 64; i++) {
             if (bitboards[color][KING] & (1n << BigInt(i))) {
@@ -1157,4 +1154,15 @@ function isKingInCheck(bitboards, color) {
         return true;
     }
     return false;
+}
+
+function renderAvailableMoves() {
+    document.querySelectorAll(".square").forEach(square => {
+        square.classList.remove("available");
+    });
+    for (let i = 0; i < 64; i++) {
+        if (availableMoves & (1n << BigInt(i))) {
+            document.querySelector(`[data-index="${i}"]`).classList.add("available");
+        }
+    }
 }
