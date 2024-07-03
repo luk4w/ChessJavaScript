@@ -504,13 +504,14 @@ function handleSquareClick(event) {
                         // verifica se é xeque mate
                     }
                     else if (isPinned(fromPosition)) {
+                        // Permite apenas a captura da peça que está fazendo o xeque
+                        if (availableMoves !== 0n) break;
                         selectedPiece = null;
                         selectedColor = null;
                         fromPosition = null;
                         availableMoves = 0n;
                         return;
                     }
-
                     // Verifica os movimentos possíveis para a peça selecionada
                     switch (selectedPiece) {
                         case PAWN:
@@ -548,6 +549,12 @@ function handleSquareClick(event) {
         if (!isIllegalMove()) {
             // Realiza o movimento da peça
             movePiece();
+        }
+        else {
+            // Efeito sonoro de movimento inválido
+            FAILURE_SOUND.play();
+            // Desmarca o rei que foi marcado na verificação do movimento ilegal
+            kingCheckPosition = null;
         }
         // Atualiza as variáveis para o próximo movimento
         fromPosition = null;
@@ -773,19 +780,36 @@ function isPinned(fromPosition) {
             }
         }
         // Verifica se a peça cravada pode capturar quem ta atacando o rei
+        let defenderMoves;
         switch (selectedPiece) {
             case PAWN:
-                // Não existe a possibilidade de captura com en passant para descravar o peão
-                return (positionAttackerMask & getPawnMoves(fromPosition, selectedColor, tempBitboards, null)) === 0n;
+                defenderMoves = getPawnMoves(fromPosition, selectedColor, tempBitboards, null);
+
+                console.log("pAWn defender Moves");
+                // imprime no formato 8x8 os bits
+                console.log(defenderMoves.toString(2).padStart(64, '0').match(/.{8}/g).join('\n'));
+                // AND
+                console.log("positionAttackerMask & defenderMoves");
+                console.log((positionAttackerMask & defenderMoves).toString(2).padStart(64, '0').match(/.{8}/g).join('\n'));
+
+                break;
             case ROOK:
-                return (positionAttackerMask & getRookMoves(fromPosition, selectedColor, tempBitboards)) === 0n;
+                defenderMoves = getRookMoves(fromPosition, selectedColor, tempBitboards);
+                break;
             case KNIGHT:
-                return (positionAttackerMask & getKnightMoves(fromPosition, selectedColor, tempBitboards)) === 0n;
+                defenderMoves = getKnightMoves(fromPosition, selectedColor, tempBitboards);
+                break;
             case BISHOP:
-                return (positionAttackerMask & getBishopMoves(fromPosition, selectedColor, tempBitboards)) === 0n;
+                defenderMoves = getBishopMoves(fromPosition, selectedColor, tempBitboards);
+                break;
             case QUEEN:
-                return (positionAttackerMask & getQueenMoves(fromPosition, selectedColor, tempBitboards)) === 0n;
+                defenderMoves = getQueenMoves(fromPosition, selectedColor, tempBitboards);
+                break;
         }
+        if (positionAttackerMask & defenderMoves) {
+            availableMoves = positionAttackerMask & defenderMoves;
+        }
+        return true;
     }
     return false;
 }
