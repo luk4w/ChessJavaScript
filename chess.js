@@ -104,6 +104,7 @@ let currentTurn = WHITE; // Turno atual
 let currentFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // FEN atual
 let halfMoves = 0; // Contagem de 100 movimentos sem captura ou movimento de peão (meio movimento)
 let fullMoves = 1; // Número total de movimentos completos
+let kingCheckPosition = null; // Posição do rei em xeque
 
 /**
         @MASCARAS_PARA_AS_BORDAS_DO_TABULEIRO
@@ -360,18 +361,8 @@ function movePiece() {
                 halfMoves = 0;
                 break;
             case KING:
-                // Verifica se o movimento coloca o rei em xeque na posição final
-                if (isIllegalMove(savedState)) {
-                    FAILURE_SOUND.play();
-                    updateAllPieces(bitboards);
-                    // Desfaz o incremento dos meios movimentos
-                    halfMoves--;
-                    return;
-                }
-
                 // verifica se o movimento foi um roque
                 if (Math.abs(fromPosition - toPosition) === 2) {
-
                     // adicionar rei na posição intermediaria
                     if ((1n << BigInt(toPosition)) & WHITE_ROOK_QUEENSIDE) {
                         //roque grande
@@ -387,18 +378,9 @@ function movePiece() {
                     }
                     else if ((1n << BigInt(toPosition)) & BLACK_ROOK_KINGSIDE) {
                         // roque pequeno
-                    }
-
-                    // verificar se o movimento é ilegal
-                    if (isIllegalMove(savedState)) {
-                        FAILURE_SOUND.play();
-                        updateAllPieces(bitboards);
-                        // Desfaz o incremento dos meios movimentos
-                        halfMoves--;
-                        return;
+                        console.log("BLACK_ROOK_KINGSIDE");
                     }
                 }
-
                 if (selectedColor === WHITE) {
                     availableCastling &= ~(WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE); // Remove KQ
                 } else {
@@ -426,9 +408,20 @@ function movePiece() {
                 break;
         }
 
-        // Efeito sonoro de movimento
-        MOVE_SOUND.play();
+        // Verifica se o rei adversário está em xeque
+        if (isKingInCheck(bitboards, OPPONENT_COLOR)) {
 
+            // verifica se o rei adversário está em xeque mate
+            // ...
+
+            // Efeito sonoro de xeque
+            CHECK_SOUND.play();
+        }
+        else {
+            // Efeito sonoro de movimento
+            MOVE_SOUND.play();
+            kingCheckPosition = null;
+        }
 
         // Contagem das jogadas completas
         if (currentTurn === BLACK) {
@@ -480,6 +473,9 @@ function renderBoard() {
         for (let file = 7; file >= 0; file--) {
             let square = document.createElement("td"); // table data
             square.className = (rank + file) % 2 === 0 ? "white" : "black"; // alternância de cores
+            if (kingCheckPosition === rank * 8 + file) {
+                square.className = "check";
+            }
             const index = rank * 8 + file; // index do quadrado
             square.dataset.index = index; // armazena o index do quadrado
             square.addEventListener("click", handlesquareClick); // adiciona o evento de clique
@@ -550,7 +546,19 @@ function handlesquareClick(event) {
                     // Marca a casa selecionada
                     event.currentTarget.classList.add("selected");
 
-                    if (isPinned(fromPosition)) {
+
+                    ////////////////////////////////////////////////////////////////////////////////
+                    //      Corrigir a lógica para verificar se a peça está cravada (pinned)      //
+                    ////////////////////////////////////////////////////////////////////////////////
+                    // Quando a peça está cravada e tem possibilidade de capturar, ocorre bug     //
+                    // ela nao consegue capturar a peça que está atacando                         //
+                    // e ao tentar mover ela, o movimento é bloqueado e a casa do rei muda de cor //
+                    ////////////////////////////////////////////////////////////////////////////////
+
+                    if (isKingInCheck(bitboards, selectedColor)) {
+                        console.log("Rei em xeque!");
+                    }
+                    else if (isPinned(fromPosition)) {
                         console.log("Está cravada na posição: " + fromPosition);
                         selectedPiece = null;
                         selectedColor = null;
@@ -594,9 +602,12 @@ function handlesquareClick(event) {
 
         // Obtem a posição de destino
         toPosition = index;
-        // Realiza o movimento da peça
-        movePiece();
 
+        // Verifica se o movimento não é ilegal
+        if (!isIllegalMove()) {
+            // Realiza o movimento da peça
+            movePiece();
+        }
         // Atualiza as variáveis para o próximo movimento
         fromPosition = null;
         selectedColor = null;
@@ -1119,16 +1130,31 @@ function isPinned(fromPosition) {
     }
     return false;
 }
-function isIllegalMove(fromPosition, toPosition) {
+function isIllegalMove() {
     // Copia o estado atual das peças
     let tempBitboards = [
-        bitboards[WHITE].map(bitboard => BigInt(bitboard)), // Copia o array de peças brancas
-        bitboards[BLACK].map(bitboard => BigInt(bitboard))  // Copia o array de peças pretas
+        bitboards[WHITE].map(bitboard => BigInt(bitboard)),
+        bitboards[BLACK].map(bitboard => BigInt(bitboard))
     ];
     // Remove a posição de origem
     tempBitboards[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
     // Adiciona na nova posição
     tempBitboards[selectedColor][selectedPiece] |= 1n << BigInt(toPosition);
-    // Retorna true se o rei estiver em xeque na nova posição
-    return tempBitboards[selectedColor][KING] & opponentMoves;
+    // Retorna verdadeiro se o rei estiver em xeque
+    return isKingInCheck(tempBitboards, selectedColor);
+}
+
+// Verifica se o rei está em xeque
+function isKingInCheck(bitboards, color) {
+    const OPPONENT_COLOR = color === WHITE ? BLACK : WHITE;
+
+    if (bitboards[color][KING] & getAllMoves(OPPONENT_COLOR, bitboards)) {
+        for (let i = 0; i < 64; i++) {
+            if (bitboards[color][KING] & (1n << BigInt(i))) {
+                kingCheckPosition = i;
+            }
+        }
+        return true;
+    }
+    return false;
 }
