@@ -320,6 +320,23 @@ function movePiece() {
                 if (bitboards[OPPONENT_COLOR][opponentPiece] & TO_MASK) {
                     // Remove a peça adversária
                     bitboards[OPPONENT_COLOR][opponentPiece] &= ~TO_MASK;
+                    // Verifica se a peça capturada foi uma torre
+                    if (opponentPiece === ROOK && availableCastling !== 0n) {
+                        switch (TO_MASK) {
+                            case WHITE_ROOK_QUEENSIDE:
+                                availableCastling &= ~WHITE_ROOK_QUEENSIDE; // Remove Q
+                                break;
+                            case WHITE_ROOK_KINGSIDE:
+                                availableCastling &= ~WHITE_ROOK_KINGSIDE; // Remove K
+                                break;
+                            case BLACK_ROOK_QUEENSIDE:
+                                availableCastling &= ~BLACK_ROOK_QUEENSIDE; // Remove q
+                                break;
+                            case BLACK_ROOK_KINGSIDE:
+                                availableCastling &= ~BLACK_ROOK_KINGSIDE; // Remove k
+                                break;
+                        }
+                    }
                 }
             }
             // Efeito sonoro de captura
@@ -488,8 +505,7 @@ function renderBoard() {
                 if (OPPONENT_PIECES & (1n << BigInt(index))) {
                     square.classList.add("capture");
                 }
-                else
-                {
+                else {
                     square.classList.add("available");
                 }
             }
