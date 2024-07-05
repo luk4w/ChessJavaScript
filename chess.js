@@ -480,25 +480,21 @@ function addPieceToBoard(index, piece, color) {
     square.appendChild(pieceDiv); // Adiciona a peça no quadrado
 }
 
-// Função para lidar com o clique na casa (quadrado) do tabuleiro
-function handleSquareClick(event) {
-    // Obtem o index do quadrado clicado
-    const index = parseInt(event.currentTarget.dataset.index);
+// Verificações que antecedem o movimento da peça
+function onMove(position) {
     // Verifica se a peça ainda não foi selecionada
     if (fromPosition === null) {
         for (let color = 0; color < 2; color++) {
             for (let piece = 0; piece < 6; piece++) {
-                if (bitboards[color][piece] & (1n << BigInt(index))) {
-
+                if (bitboards[color][piece] & (1n << BigInt(position))) {
                     // Verifica se a peça pertence ao jogador do turno atual
                     if (color !== currentTurn) {
                         return;
                     }
-
                     // Obtem o tipo da peça, a cor e a posição de origem
                     selectedPiece = piece;
                     selectedColor = color;
-                    fromPosition = index;
+                    fromPosition = position;
 
                     if (isKingInCheck(bitboards, selectedColor)) {
                         // verifica se é xeque mate
@@ -510,7 +506,16 @@ function handleSquareClick(event) {
                         selectedColor = null;
                         fromPosition = null;
                         availableMoves = 0n;
-                        return;
+                        // Efeito sonoro de movimento inválido
+                        FAILURE_SOUND.play();
+                        // Marca o próprio rei
+                        for (let i = 0; i < 64; i++) {
+                            if (bitboards[color][KING] & (1n << BigInt(i))) {
+                                kingCheckPosition = i;
+                                break;
+                            }
+                        }
+                        break;
                     }
                     // Verifica os movimentos possíveis para a peça selecionada
                     switch (selectedPiece) {
@@ -540,21 +545,32 @@ function handleSquareClick(event) {
             }
         }
     } else {
-        // Se não foi selecionada a peça, então foi selecionado o quadrado de destino
-
         // Obtem a posição de destino
-        toPosition = index;
-
-        // Verifica se o movimento não é ilegal
-        if (!isIllegalMove()) {
-            // Realiza o movimento da peça
-            movePiece();
-        }
-        else {
-            // Efeito sonoro de movimento inválido
-            FAILURE_SOUND.play();
-            // Desmarca o rei que foi marcado na verificação do movimento ilegal
+        toPosition = position;
+        // Obtem as peças do jogador atual
+        const OWN_PIECES = bitboards[currentTurn][PAWN] | bitboards[currentTurn][KNIGHT] | bitboards[currentTurn][BISHOP]
+            | bitboards[currentTurn][ROOK] | bitboards[currentTurn][QUEEN] | bitboards[currentTurn][KING];
+        // Verifica se a peça de origem é da mesma cor que a de destino
+        if (OWN_PIECES & (1n << BigInt(toPosition))) {
+            fromPosition = null;
+            selectedColor = null;
+            availableMoves = 0n;
             kingCheckPosition = null;
+            // Refaz a seleção da peça
+            onMove(toPosition);
+            return;
+        } else {
+            // Verifica se o movimento não é ilegal
+            if (!isIllegalMove()) {
+                // Movimenta a peça a partir das variaveis definidas no escopo global
+                movePiece();
+            }
+            else {
+                // Efeito sonoro de movimento inválido
+                FAILURE_SOUND.play();
+                // Desmarca o rei que foi marcado na verificação do movimento ilegal
+                kingCheckPosition = null;
+            }
         }
         // Atualiza as variáveis para o próximo movimento
         fromPosition = null;
@@ -562,7 +578,16 @@ function handleSquareClick(event) {
         toPosition = null;
         availableMoves = 0n;
     }
-    renderBoard();
+    renderBoard(); // Renderiza o tabuleiro
+    kingCheckPosition = null;
+}
+
+// Função para lidar com o clique no quadrado da tabela
+function handleSquareClick(event) {
+    // Obtem o indice do quadrado clicado
+    const index = parseInt(event.currentTarget.dataset.index);
+    // Verificações que antecedem o movimento
+    onMove(index);
 }
 
 // Inicializa o tabuleiro e renderiza
@@ -784,14 +809,6 @@ function isPinned(fromPosition) {
         switch (selectedPiece) {
             case PAWN:
                 defenderMoves = getPawnMoves(fromPosition, selectedColor, tempBitboards, null);
-
-                console.log("pAWn defender Moves");
-                // imprime no formato 8x8 os bits
-                console.log(defenderMoves.toString(2).padStart(64, '0').match(/.{8}/g).join('\n'));
-                // AND
-                console.log("positionAttackerMask & defenderMoves");
-                console.log((positionAttackerMask & defenderMoves).toString(2).padStart(64, '0').match(/.{8}/g).join('\n'));
-
                 break;
             case ROOK:
                 defenderMoves = getRookMoves(fromPosition, selectedColor, tempBitboards);
