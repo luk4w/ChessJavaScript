@@ -50,8 +50,8 @@ input {
     background-color: green;
 }
 
-.selected_white{
-    background-color: darkslategray;
+.selected{
+    background-color: gray;
 }
 
 .check {

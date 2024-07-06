@@ -422,7 +422,7 @@ function renderBoard() {
             }
 
             if (fromPosition === index) {
-                square.classList.add("selected_white");
+                square.classList.add("selected");
             }
             // Adiciona a decoração dos movimentos possíveis
             if (availableMoves & (1n << BigInt(index))) {
