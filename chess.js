@@ -421,6 +421,9 @@ function renderBoard() {
                 square.className = (rank + file) % 2 === 0 ? "white" : "black"; // alternância de cores
             }
 
+            if (fromPosition === index) {
+                square.classList.add("selected_white");
+            }
             // Adiciona a decoração dos movimentos possíveis
             if (availableMoves & (1n << BigInt(index))) {
                 const OPPONENT_COLOR = selectedColor === WHITE ? BLACK : WHITE;

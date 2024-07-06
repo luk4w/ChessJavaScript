@@ -26,7 +26,6 @@ body {
 
 .fen-section {
     margin-top: 20px;
-    ;
     display: flex;
     align-items: center;
 }
@@ -51,8 +50,8 @@ input {
     background-color: green;
 }
 
-.selected {
-    background-color: whitesmoke;
+.selected_white{
+    background-color: darkslategray;
 }
 
 .check {
