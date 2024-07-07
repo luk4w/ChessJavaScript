@@ -15,15 +15,14 @@
 // Importação das constantes
 import { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING } from './constants/pieces.js';
 import { WHITE, BLACK, PIECES_STRING } from './constants/colors.js';
-import { NOT_1_RANK, NOT_8_RANK, NOT_A_FILE, NOT_H_FILE } from './constants/edges.js';
 import { WHITE_ROOK_KINGSIDE, WHITE_ROOK_QUEENSIDE, BLACK_ROOK_KINGSIDE, BLACK_ROOK_QUEENSIDE } from './constants/castling.js';
 import { CAPTURE_SOUND, CHECK_SOUND, FAILURE_SOUND, MOVE_SOUND } from './constants/sounds.js';
 
 // Importação das funções
 import { getPawnMoves } from './moves/pawn.js';
-import { getRookMoves } from './moves/rook.js';
+import { getRookMoves, getR, getL, getU, getD } from './moves/rook.js';
 import { getKnightMoves } from './moves/knight.js';
-import { getBishopMoves } from './moves/bishop.js';
+import { getBishopMoves, getUR, getUL, getLL, getLR } from './moves/bishop.js';
 import { getQueenMoves } from './moves/queen.js';
 import { getKingMoves } from './moves/king.js';
 
@@ -115,9 +114,8 @@ let currentTurn = WHITE; // Turno atual
 let currentFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // FEN atual
 let halfMoves = 0; // Contagem de 100 movimentos sem captura ou movimento de peão (meio movimento)
 let fullMoves = 1; // Número total de movimentos completos
-let kingCheckPosition = null; // Posição do rei em xeque
-
-let availableCastling = WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE | BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE;
+let checkMask = null; // Máscara do rei em xeque
+let availableCastlingMask = WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE | BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE; // Máscara para os roques disponíveis
 
 // Inicializa o tabuleiro de xadrez com as posições iniciais das peças.
 function initializeBoard() {
@@ -246,19 +244,19 @@ function movePiece() {
                     // Remove a peça adversária
                     bitboards[OPPONENT_COLOR][opponentPiece] &= ~TO_MASK;
                     // Verifica se a peça capturada foi uma torre
-                    if (opponentPiece === ROOK && availableCastling !== 0n) {
+                    if (opponentPiece === ROOK && availableCastlingMask !== 0n) {
                         switch (TO_MASK) {
                             case WHITE_ROOK_QUEENSIDE:
-                                availableCastling &= ~WHITE_ROOK_QUEENSIDE; // Remove Q
+                                availableCastlingMask &= ~WHITE_ROOK_QUEENSIDE; // Remove Q
                                 break;
                             case WHITE_ROOK_KINGSIDE:
-                                availableCastling &= ~WHITE_ROOK_KINGSIDE; // Remove K
+                                availableCastlingMask &= ~WHITE_ROOK_KINGSIDE; // Remove K
                                 break;
                             case BLACK_ROOK_QUEENSIDE:
-                                availableCastling &= ~BLACK_ROOK_QUEENSIDE; // Remove q
+                                availableCastlingMask &= ~BLACK_ROOK_QUEENSIDE; // Remove q
                                 break;
                             case BLACK_ROOK_KINGSIDE:
-                                availableCastling &= ~BLACK_ROOK_KINGSIDE; // Remove k
+                                availableCastlingMask &= ~BLACK_ROOK_KINGSIDE; // Remove k
                                 break;
                         }
                     }
@@ -324,26 +322,26 @@ function movePiece() {
                     }
                 }
                 if (selectedColor === WHITE) {
-                    availableCastling &= ~(WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE); // Remove KQ
+                    availableCastlingMask &= ~(WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE); // Remove KQ
                 } else {
-                    availableCastling &= ~(BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE); // Remove kq
+                    availableCastlingMask &= ~(BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE); // Remove kq
                 }
 
                 break;
             case ROOK:
-                if (1n << BigInt(fromPosition) & availableCastling) {
+                if (1n << BigInt(fromPosition) & availableCastlingMask) {
                     switch (1n << BigInt(fromPosition)) {
                         case WHITE_ROOK_QUEENSIDE:
-                            availableCastling &= ~WHITE_ROOK_QUEENSIDE; // Remove Q
+                            availableCastlingMask &= ~WHITE_ROOK_QUEENSIDE; // Remove Q
                             break;
                         case WHITE_ROOK_KINGSIDE:
-                            availableCastling &= ~WHITE_ROOK_KINGSIDE; // Remove K
+                            availableCastlingMask &= ~WHITE_ROOK_KINGSIDE; // Remove K
                             break;
                         case BLACK_ROOK_QUEENSIDE:
-                            availableCastling &= ~BLACK_ROOK_QUEENSIDE; // Remove q
+                            availableCastlingMask &= ~BLACK_ROOK_QUEENSIDE; // Remove q
                             break;
                         case BLACK_ROOK_KINGSIDE:
-                            availableCastling &= ~BLACK_ROOK_KINGSIDE; // Remove k
+                            availableCastlingMask &= ~BLACK_ROOK_KINGSIDE; // Remove k
                             break;
                     }
                 }
@@ -362,7 +360,7 @@ function movePiece() {
         else {
             // Efeito sonoro de movimento
             MOVE_SOUND.play();
-            kingCheckPosition = null;
+            checkMask = null;
         }
 
         // Contagem das jogadas completas
@@ -414,7 +412,7 @@ function renderBoard() {
         for (let file = 7; file >= 0; file--) {
             const index = rank * 8 + file; // index do quadrado
             let square = document.createElement("td"); // table data
-            if (kingCheckPosition === rank * 8 + file) {
+            if (checkMask === 1n << BigInt(index)) {
                 square.className = "check";
             }
             else {
@@ -499,12 +497,14 @@ function onMove(position) {
                     selectedColor = color;
                     fromPosition = position;
 
-                    if (isKingInCheck(bitboards, selectedColor)) {
-                        // verifica se é xeque mate
+                    if (availableMoves != 0n && checkMask === bitboards[color][KING]) {
+                        // Restringe os movimentos possíveis para as peças defenderem o rei
+
                     }
                     else if (isPinned(fromPosition)) {
                         // Permite apenas a captura da peça que está fazendo o xeque
                         if (availableMoves !== 0n) break;
+                        // Redefinição das variáveis
                         selectedPiece = null;
                         selectedColor = null;
                         fromPosition = null;
@@ -558,7 +558,7 @@ function onMove(position) {
             fromPosition = null;
             selectedColor = null;
             availableMoves = 0n;
-            kingCheckPosition = null;
+            checkMask = null;
             // Refaz a seleção da peça
             onMove(toPosition);
             return;
@@ -572,7 +572,7 @@ function onMove(position) {
                 // Efeito sonoro de movimento inválido
                 FAILURE_SOUND.play();
                 // Desmarca o rei que foi marcado na verificação do movimento ilegal
-                kingCheckPosition = null;
+                checkMask = null;
             }
         }
         // Atualiza as variáveis para o próximo movimento
@@ -582,7 +582,7 @@ function onMove(position) {
         availableMoves = 0n;
     }
     renderBoard(); // Renderiza o tabuleiro
-    kingCheckPosition = null;
+    checkMask = null;
 }
 
 // Função para lidar com o clique no quadrado da tabela
@@ -720,10 +720,10 @@ function updateFEN() {
 // Verificação do estado dos roques disponíveis
 function getCastlingFEN() {
     let result = '';
-    if (availableCastling & WHITE_ROOK_KINGSIDE) result += 'K';
-    if (availableCastling & WHITE_ROOK_QUEENSIDE) result += 'Q';
-    if (availableCastling & BLACK_ROOK_KINGSIDE) result += 'k';
-    if (availableCastling & BLACK_ROOK_QUEENSIDE) result += 'q';
+    if (availableCastlingMask & WHITE_ROOK_KINGSIDE) result += 'K';
+    if (availableCastlingMask & WHITE_ROOK_QUEENSIDE) result += 'Q';
+    if (availableCastlingMask & BLACK_ROOK_KINGSIDE) result += 'k';
+    if (availableCastlingMask & BLACK_ROOK_QUEENSIDE) result += 'q';
     return result || '-';
 }
 
@@ -776,38 +776,144 @@ function isPinned(fromPosition) {
     // remove a peça da posição de origem
     tempBitboards[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
 
-    // peça que está atacando o rei
-    let positionAttackerMask = 0n;
+    // Mascara de bits do ataque (posição da peça e quadrados atacados)
+    let attackerMask = 0n;
     const ENEMY_MOVES = getAllMoves(OPPONENT_COLOR, tempBitboards);
 
     // verifica se o bitboard do rei coincide com algum bit de todos os movimentos de ataque das peças inimigas
     if (KING_MASK & ENEMY_MOVES) {
         // Verifica a posição de quem realiza o ataque descoberto
         for (let piece = 0; piece < 6; piece++) {
+            // Obtem o bitboard da peça
             let bitboard = tempBitboards[OPPONENT_COLOR][piece];
+            // Obtem a posição da peça atacante
             for (let i = 0; i < 64; i++) {
+                // Verifica se existe uma peça na posição i
                 if (bitboard & (1n << BigInt(i))) {
+                    // Escolhe o tipo da peça
                     switch (piece) {
                         case ROOK:
+                            // Verifica se a peça pode atacar o rei
                             if (getRookMoves(i, OPPONENT_COLOR, tempBitboards) & KING_MASK) {
-                                positionAttackerMask |= 1n << BigInt(i);
+                                attackerMask |= 1n << BigInt(i);
+                                // Obtem a direção do ataque
+                                // Ataca o rei na direita
+                                let rightMoves = getR(i, OPPONENT_COLOR, tempBitboards);
+                                if (rightMoves & KING_MASK) {
+                                    attackerMask |= rightMoves;
+                                    break;
+                                }
+                                // Ataca o rei na esquerda
+                                let leftMoves = getL(i, OPPONENT_COLOR, tempBitboards);
+                                if (leftMoves & KING_MASK) {
+                                    attackerMask |= leftMoves;
+                                    break;
+                                }
+                                // Ataca o rei para cima
+                                let upMoves = getU(i, OPPONENT_COLOR, tempBitboards);
+                                if (upMoves & KING_MASK) {
+                                    attackerMask |= upMoves;
+                                    break;
+                                }
+                                // Ataca o rei para baixo
+                                let downMoves = getD(i, OPPONENT_COLOR, tempBitboards);
+                                if (downMoves & KING_MASK) {
+                                    attackerMask |= downMoves;
+                                    break;
+                                }
                             }
                             break;
                         case BISHOP:
+                            // Verifica se a peça pode atacar o rei
                             if (getBishopMoves(i, OPPONENT_COLOR, tempBitboards) & KING_MASK) {
-                                positionAttackerMask |= 1n << BigInt(i);
+                                attackerMask |= 1n << BigInt(i);
+                                // Obtem a direção do ataque
+                                // Ataca o rei na diagonal superior direita
+                                let upperRightMoves = getUR(i, OPPONENT_COLOR, tempBitboards);
+                                if (upperRightMoves & KING_MASK) {
+                                    attackerMask |= upperRightMoves;
+                                    break;
+                                }
+                                // Ataca o rei na diagonal superior esquerda
+                                let upperLeftMoves = getUL(i, OPPONENT_COLOR, tempBitboards);
+                                if (upperLeftMoves & KING_MASK) {
+                                    attackerMask |= upperLeftMoves;
+                                    break;
+                                }
+                                // Ataca o rei na diagonal inferior direita
+                                let lowerRightMoves = getLR(i, OPPONENT_COLOR, tempBitboards);
+                                if (lowerRightMoves & KING_MASK) {
+                                    attackerMask |= lowerRightMoves;
+                                    break;
+                                }
+                                // Ataca o rei na diagonal inferior esquerda
+                                let lowerLeftMoves = getLL(i, OPPONENT_COLOR, tempBitboards);
+                                if (lowerLeftMoves & KING_MASK) {
+                                    attackerMask |= lowerLeftMoves;
+                                    break;
+                                }
                             }
                             break;
                         case QUEEN:
+                            // Verifica se a peça pode atacar o rei
                             if (getQueenMoves(i, OPPONENT_COLOR, tempBitboards) & KING_MASK) {
-                                positionAttackerMask |= 1n << BigInt(i);
+                                attackerMask |= 1n << BigInt(i);
+                                // Obtem a direção do ataque
+                                // Ataca o rei na direita
+                                let rightMoves = getR(i, OPPONENT_COLOR, tempBitboards);
+                                if (rightMoves & KING_MASK) {
+                                    attackerMask |= rightMoves;
+                                    break;
+                                }
+                                // Ataca o rei na esquerda
+                                let leftMoves = getL(i, OPPONENT_COLOR, tempBitboards);
+                                if (leftMoves & KING_MASK) {
+                                    attackerMask |= leftMoves;
+                                    break;
+                                }
+                                // Ataca o rei para cima
+                                let upMoves = getU(i, OPPONENT_COLOR, tempBitboards);
+                                if (upMoves & KING_MASK) {
+                                    attackerMask |= upMoves;
+                                    break;
+                                }
+                                // Ataca o rei para baixo
+                                let downMoves = getD(i, OPPONENT_COLOR, tempBitboards);
+                                if (downMoves & KING_MASK) {
+                                    attackerMask |= downMoves;
+                                    break;
+                                }
+                                // Ataca o rei na diagonal superior direita
+                                let upperRightMoves = getUR(i, OPPONENT_COLOR, tempBitboards);
+                                if (upperRightMoves & KING_MASK) {
+                                    attackerMask |= upperRightMoves;
+                                    break;
+                                }
+                                // Ataca o rei na diagonal superior esquerda
+                                let upperLeftMoves = getUL(i, OPPONENT_COLOR, tempBitboards);
+                                if (upperLeftMoves & KING_MASK) {
+                                    attackerMask |= upperLeftMoves;
+                                    break;
+                                }
+                                // Ataca o rei na diagonal inferior direita
+                                let lowerRightMoves = getLR(i, OPPONENT_COLOR, tempBitboards);
+                                if (lowerRightMoves & KING_MASK) {
+                                    attackerMask |= lowerRightMoves;
+                                    break;
+                                }
+                                // Ataca o rei na diagonal inferior esquerda
+                                let lowerLeftMoves = getLL(i, OPPONENT_COLOR, tempBitboards);
+                                if (lowerLeftMoves & KING_MASK) {
+                                    attackerMask |= lowerLeftMoves;
+                                    break;
+                                }
                             }
                             break;
                     }
                 }
             }
         }
-        // Verifica se a peça cravada pode capturar quem ta atacando o rei
+        // Verifica se a peça cravada pode capturar quem ta atacando o rei ou entrar na linha de ataque
         let defenderMoves;
         switch (selectedPiece) {
             case PAWN:
@@ -826,8 +932,8 @@ function isPinned(fromPosition) {
                 defenderMoves = getQueenMoves(fromPosition, selectedColor, tempBitboards);
                 break;
         }
-        if (positionAttackerMask & defenderMoves) {
-            availableMoves = positionAttackerMask & defenderMoves;
+        if (attackerMask & defenderMoves) {
+            availableMoves = attackerMask & defenderMoves;
         }
         return true;
     }
@@ -856,11 +962,7 @@ function isIllegalMove() {
 function isKingInCheck(bitboards, color) {
     const OPPONENT_COLOR = color === WHITE ? BLACK : WHITE;
     if (bitboards[color][KING] & getAllMoves(OPPONENT_COLOR, bitboards)) {
-        for (let i = 0; i < 64; i++) {
-            if (bitboards[color][KING] & (1n << BigInt(i))) {
-                kingCheckPosition = i;
-            }
-        }
+        checkMask = bitboards[color][KING];
         return true;
     }
     return false;
