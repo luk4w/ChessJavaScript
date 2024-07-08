@@ -46,6 +46,54 @@ input {
     box-sizing: border-box;
 }
 
+.end-section{
+    position: absolute;
+    /*display: flex;*/
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin: 20px;
+    top: 200px;
+    left: 50px;
+    right: 50px;
+    width: calc(100% - 180px);
+    max-width: 600px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.end-section button {
+    font-family: 'consolas', monospace;
+    font-weight: bold;
+    font-size: 20px;
+    width: 100%;
+    max-width: 300px;
+    padding: 10px;
+    background-color: #ffffff;
+    border: none;
+    border-radius: 5px;
+    color: black;
+    cursor: pointer;
+    margin-bottom: 20px;
+}
+
+.end-section label{
+    font-family: 'consolas', monospace;
+    font-weight: bold;
+    line-height: 1.5;
+    font-size: 20px;
+    text-align: center;
+    margin: 0;
+    margin-bottom: 20px;
+}
+
+.end-section button:hover {
+    background-color: green;
+}
+
 .white {
     background-color: bisque;
 }
