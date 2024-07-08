@@ -356,6 +356,20 @@ function movePiece() {
             if (getAllDefenderMovesMask(bitboards, OPPONENT_COLOR) === 0n) {
                 // Efeito sonoro de xeque mate
                 END_SOUND.play();
+
+                let winner = selectedColor === WHITE ? "White" : "Black";
+                // Atualiza a mensagem de xeque mate
+                document.getElementById("end-game-message").textContent = "Checkmate!\n" + winner + " wins.";
+                // Exibe a mensagem de xeque mate
+                document.getElementById("end").style.display = "flex";
+
+                // callback do botão restart
+                document.getElementById("restart-button").addEventListener("click", function () {
+                    // Oculta a mensagem de xeque mate
+                    document.getElementById("end").style.display = "none";
+                    // Reinicia o jogo
+                    restart();
+                });
             }
             else {
                 // Efeito sonoro de xeque
@@ -503,9 +517,10 @@ function onMove(position) {
                     fromPosition = position;
                     // Redefine a máscara de movimentos disponíveis
                     availableMoves = 0n;
-                    // Verifica se a peça está em xeque
+
+
+                    // Verifica se o rei está em xeque
                     if (isKingInCheck(bitboards, selectedColor)) {
-                        console.log("Em xeque!");
                         // movimentos possiveis para se defender do xeque
                         let allDefenderMoves = getAllDefenderMovesMask(bitboards, color);
                         // Verifica se a peça pode se mover para defender o rei
@@ -988,7 +1003,33 @@ function getPieceMovesMask(from, piece, color, bitboards) {
             moves |= getQueenMoves(from, color, bitboards);
             break;
         case KING:
-            moves |= getKingMoves(from, color, bitboards);
+            let tempMoves = getKingMoves(from, color, bitboards);
+            // obtem o ataque das peças inimigas
+            let opponentMoves = 0n;
+            for (let p = 0; p < 6; p++) {
+                switch (p) {
+                    case PAWN:
+                        opponentMoves |= getPawnMoves(from, color === WHITE ? BLACK : WHITE, bitboards, null);
+                        break;
+                    case ROOK:
+                        opponentMoves |= getRookMoves(from, color === WHITE ? BLACK : WHITE, bitboards);
+                        break;
+                    case KNIGHT:
+                        opponentMoves |= getKnightMoves(from, color === WHITE ? BLACK : WHITE, bitboards);
+                        break;
+                    case BISHOP:
+                        opponentMoves |= getBishopMoves(from, color === WHITE ? BLACK : WHITE, bitboards);
+                        break;
+                    case QUEEN:
+                        opponentMoves |= getQueenMoves(from, color === WHITE ? BLACK : WHITE, bitboards);
+                        break;
+                    case KING:
+                        opponentMoves |= getKingMoves(from, color === WHITE ? BLACK : WHITE, bitboards);
+                        break;
+                }
+            }
+            // remove os movimentos que atacam o rei
+            moves |= tempMoves & ~opponentMoves;
             break;
         default:
             throw new Error("Piece not found!");
@@ -1014,21 +1055,8 @@ function getAllDefenderMovesMask(bitboards, color) {
     ];
 
     const KING_MASK = bitboards[color][KING];
-    const OPPONENT_COLOR = selectedColor === WHITE ? BLACK : WHITE;
+    const OPPONENT_COLOR = color === WHITE ? BLACK : WHITE;
     const ENEMY_ALL_MOVES = getAllMovesMask(OPPONENT_COLOR, tempBitboards);
-
-    // Obtem a posição do rei
-    let kingPosition = 0;
-    for (let i = 0; i < 64; i++) {
-        if (KING_MASK & (1n << BigInt(i))) {
-            kingPosition = i;
-            break;
-        }
-    }
-
-    // Obtem os movimentos possíveis do rei
-    let kingMoves = getKingMoves(kingPosition, color, tempBitboards);
-    defenderMask |= kingMoves & ~ENEMY_ALL_MOVES;
 
     // Mascara de bits dos ataques ao rei
     let attackerMask = 0n;
@@ -1196,13 +1224,55 @@ function getAllDefenderMovesMask(bitboards, color) {
         }
     }
 
+    let opponentPiece = null;
+    // Obtem a posição do rei
+    let kingPosition = 0;
+    for (let i = 0; i < 64; i++) {
+        if (KING_MASK & (1n << BigInt(i))) {
+            kingPosition = i;
+            break;
+        }
+    }
+    // Obtem os movimentos possíveis do rei
+    let kingMovesMask = getKingMoves(kingPosition, color, tempBitboards);
+    // verifica se o rei pode capturar a peça que ataca ele, ou seja, se ela nao está protegida por outra peça
+    if (kingMovesMask & attackerPositionMask) {
+        // remove temporariamente o rei
+        tempBitboards[color][KING] &= ~KING_MASK;
+        // remove a peça que está atacando o rei
+        for (let op = 0; op < 6; op++) {
+            tempBitboards[OPPONENT_COLOR][op] &= ~attackerPositionMask;
+            opponentPiece = op;
+        }
+        // adiciona o rei na posição capturada
+        tempBitboards[color][KING] |= attackerPositionMask;
+        // verifica se o rei está em xeque
+        if (isKingInCheck(tempBitboards, color)) {
+            // Restaura a peça que foi removida
+            tempBitboards[OPPONENT_COLOR][opponentPiece] |= attackerPositionMask;
+            // Restaura a posição do rei
+            tempBitboards[color][KING] &= ~attackerPositionMask;
+            tempBitboards[color][KING] |= KING_MASK;
+            // remove o movimento possível 
+            kingMovesMask &= ~attackerPositionMask;
+        }
+        else {
+            // Restaura a peça que foi removida
+            tempBitboards[OPPONENT_COLOR][opponentPiece] |= attackerPositionMask;
+            // Restaura a posição do rei
+            tempBitboards[color][KING] &= ~attackerPositionMask;
+            tempBitboards[color][KING] |= KING_MASK;
+            // Deixa o movimento possível para defender o rei no bitboard
+        }
+    }
+    defenderMask |= kingMovesMask;
+
     // Se for atacado por mais de uma peça, somente o movimento de rei é possível	
     if (attackersCount > 1) {
-        return kingMoves;
+        return kingMovesMask;
     }
 
     // Verificar se alguma peça aliada pode capturar ou entrar na frente de quem está atacando o rei
-    let opponentPiece = null;
     for (let p = 0; p < 6; p++) {
         // Obtem o bitboard da peça
         let bitboard = tempBitboards[color][p];
@@ -1331,4 +1401,22 @@ function getAllDefenderMovesMask(bitboards, color) {
     // console.log("Defender Mask:");
     // console.log(defenderMask.toString(2).padStart(64, "0").match(/.{8}/g).join("\n"));
     return defenderMask;
+}
+
+function restart() {
+    // Reseta as variáveis 
+    availableMoves = 0n;
+    selectedPiece = null;
+    selectedColor = null;
+    fromPosition = null;
+    toPosition = null;
+    enPassant = null;
+    currentTurn = WHITE;
+    currentFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    halfMoves = 0;
+    fullMoves = 1;
+    checkMask = 0n;
+    availableCastlingMask = WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE | BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE;
+    initializeBoard();
+    renderBoard();
 }
