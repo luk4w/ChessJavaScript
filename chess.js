@@ -395,7 +395,6 @@ function movePiece() {
         updateFEN();
 
     } else {
-        console.log("Available moves = 0");
         // Efeito sonoro de movimento inválido
         FAILURE_SOUND.play();
         return;
@@ -1289,7 +1288,7 @@ function getAllDefenderMovesMask(bitboards, color) {
                         break;
                     case KNIGHT:
                         // Verifica se o cavalo ataca o rei
-                        if (getKnightMoves(i, OPPONENT_COLOR, tempBitboards)) {
+                        if (getKnightMoves(i, OPPONENT_COLOR, tempBitboards) & KING_MASK) {
                             attackersCount++;
                             attackerPositionMask |= 1n << BigInt(i);
                             attackerMask |= (getKnightMoves(i, OPPONENT_COLOR, tempBitboards));
@@ -1321,21 +1320,10 @@ function getAllDefenderMovesMask(bitboards, color) {
 
     // Peça que está atacando o rei
     let opponentPiece = null;
-    // verifica quantas peças estão atacando o rei
-    for (let op = 0; op < 6; op++) {
-        let bitboard = tempBitboards[OPPONENT_COLOR][op];
-        for (let i = 0; i < 64; i++) {
-            if (bitboard & (1n << BigInt(i)) & KING_MASK) {
-                // Incrementa o contador de peças atacantes
-                attackersCount++;
-                // Obtem a posição da peça que está atacando o rei
-                attackerPositionMask |= 1n << BigInt(i);
-                break;
-            }
-        }
-    }
+
     // Se for atacado por mais de uma peça, somente o movimento de rei é possível	
     if (attackersCount > 1) {
+        console.log("attackerCOunt > 1  === " + attackersCount);
         return kingMovesMask;
     }
 
@@ -1453,7 +1441,7 @@ function getAllDefenderMovesMask(bitboards, color) {
                             // Se não estiver cravada por outro ataque
                             if (!pinned) {
                                 // Adiciona o movimento possível para defender o rei
-                                defenderMask |= (bishopMoves & (attackerMask | attackerPositionMask));
+                                defenderMask |= (queenMoves & (attackerMask | attackerPositionMask));
                             }
                             // Restaura a peça que foi removida
                             tempBitboards[OPPONENT_COLOR][opponentPiece] |= attackerPositionMask;
@@ -1462,11 +1450,14 @@ function getAllDefenderMovesMask(bitboards, color) {
                     default:
                         break;
                 }
+
+                // console.log("Defender Mask:" + i);
+                // console.log(defenderMask.toString(2).padStart(64, "0").match(/.{8}/g).join("\n"));
+
             }
         }
     }
-    // console.log("Defender Mask:");
-    // console.log(defenderMask.toString(2).padStart(64, "0").match(/.{8}/g).join("\n"));
+
     return defenderMask;
 }
 
