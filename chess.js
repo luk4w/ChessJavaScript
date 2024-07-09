@@ -522,8 +522,6 @@ function onMove(position) {
 
                     // Verifica se o rei está em xeque
                     if (isKingInCheck(bitboards, selectedColor)) {
-                        // Depuração
-                        console.log("King in check");
                         // movimentos possiveis para se defender do xeque
                         let allDefenderMoves = getAllDefenderMovesMask(bitboards, color);
                         // Verifica se a peça pode se mover para defender o rei
@@ -534,8 +532,6 @@ function onMove(position) {
                     }
                     // Verifica se a peça está cravada e pode se mover
                     else if (isPinnedMask(fromPosition, bitboards) != null && isPinnedMask(fromPosition, bitboards) && selectedPiece !== KING) {
-                        // Depuração
-                        console.log("Pinned piece with available moves");
                         availableMoves = isPinnedMask(fromPosition, bitboards);
                         break;
                     }
@@ -546,8 +542,6 @@ function onMove(position) {
                         availableMoves = 0n;
                         break;
                     }
-                    // Depuração
-                    console.log("Normal move");
                     availableMoves = getPieceMovesMask(fromPosition, selectedPiece, selectedColor, bitboards);
                 }
             }
@@ -1032,10 +1026,6 @@ function getKingSafeMoves(from, color, bitboards) {
     let kingMovesMask = getKingMoves(from, color, bitboards);
     const OPPONENT_COLOR = color === WHITE ? BLACK : WHITE;
     let attackerMask = getAttackerMask(OPPONENT_COLOR, bitboards);
-
-    // depuração
-    console.log("attackerMask: ");
-    console.log(attackerMask.toString(2).padStart(64, "0").match(/.{8}/g).join("\n"));
 
     // Remove os movimentos que o rei não pode realizar
     moves = kingMovesMask & ~attackerMask;
