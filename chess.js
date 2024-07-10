@@ -15,9 +15,11 @@
 // Importação das constantes
 import { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING } from './constants/pieces.js';
 import { WHITE, BLACK, PIECES_STRING } from './constants/colors.js';
-import { WHITE_ROOK_KINGSIDE, WHITE_ROOK_QUEENSIDE, BLACK_ROOK_KINGSIDE, BLACK_ROOK_QUEENSIDE } from './constants/castling.js';
-import { CAPTURE_SOUND, CHECK_SOUND, END_SOUND, FAILURE_SOUND, MOVE_SOUND } from './constants/sounds.js';
-import { NOT_A_FILE, NOT_H_FILE } from './constants/edges.js';
+import {
+    WHITE_ROOK_KINGSIDE, WHITE_ROOK_QUEENSIDE, BLACK_ROOK_KINGSIDE, BLACK_ROOK_QUEENSIDE,
+    WHITE_KINGSIDE_CASTLING_EMPTY, WHITE_QUEENSIDE_CASTLING_EMPTY, BLACK_KINGSIDE_CASTLING_EMPTY, BLACK_QUEENSIDE_CASTLING_EMPTY
+} from './constants/castling.js';
+import { CAPTURE_SOUND, CASTLING_SOUND, CHECK_SOUND, END_SOUND, FAILURE_SOUND, MOVE_SOUND } from './constants/sounds.js';
 
 // Importação das funções
 import { getPawnMoves, getCaptureRight, getCaptureLeft } from './moves/pawn.js';
@@ -115,7 +117,7 @@ let currentTurn = WHITE; // Turno atual
 let currentFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // FEN atual
 let halfMoves = 0; // Contagem de 100 movimentos sem captura ou movimento de peão (meio movimento)
 let fullMoves = 1; // Número total de movimentos completos
-let checkMask = 0n; // Máscara do rei em xeque
+let kingCheckMask = 0n; // Máscara do rei em xeque
 let availableCastlingMask = WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE | BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE; // Máscara para os roques disponíveis
 
 // Inicializa o tabuleiro de xadrez com as posições iniciais das peças.
@@ -227,16 +229,16 @@ function movePiece() {
         | bitboards[OPPONENT_COLOR][ROOK] | bitboards[OPPONENT_COLOR][QUEEN] | bitboards[OPPONENT_COLOR][KING];
     // Mascara de bits da nova posição
     const TO_MASK = 1n << BigInt(toPosition);
+    // Variável para verificar se algum som ja foi tocado
+    let isPlayedSound = false;
 
     if (availableMoves & TO_MASK) {
-
         // Incrementa os meios movimentos
         halfMoves++;
         // Remove a posição de origem da peça
         bitboards[selectedColor][selectedPiece] &= ~(1n << BigInt(fromPosition));
         // Adiciona a nova posição da peça
         bitboards[selectedColor][selectedPiece] |= TO_MASK;
-
         // Verifica se houve captura de peça
         if (TO_MASK & opponentPices) {
             // Iteração nas bitboards adversárias, para saber qual peça foi capturada
@@ -265,6 +267,7 @@ function movePiece() {
             }
             // Efeito sonoro de captura
             CAPTURE_SOUND.play();
+            isPlayedSound = true;
             enPassant = null;
             halfMoves = 0;
         }
@@ -275,7 +278,6 @@ function movePiece() {
                 const OPPONENT_PAWNS = selectedColor === WHITE ? bitboards[BLACK][PAWN] : bitboards[WHITE][PAWN];
                 const CAPTURE_LEFT = selectedColor === WHITE ? fromPosition + 9 : fromPosition - 9;
                 const CAPTURE_RIGHT = selectedColor === WHITE ? fromPosition + 7 : fromPosition - 7;
-
                 // Verifica se o peão foi capturado pelo movimento en passant
                 if ((enPassant !== null) && (toPosition === CAPTURE_LEFT || toPosition === CAPTURE_RIGHT)
                     && (OPPONENT_PAWNS & (1n << BigInt(enPassant)))) {
@@ -283,8 +285,8 @@ function movePiece() {
                     bitboards[OPPONENT_COLOR][PAWN] &= ~(1n << BigInt(enPassant));
                     // Efeito sonoro de captura
                     CAPTURE_SOUND.play();
+                    isPlayedSound = true;
                 }
-
                 // Verifica se o peão avançou duas casas em seu primeiro movimento
                 if (Math.abs(fromPosition - toPosition) === 16) {
                     // Verifica se existe um peão adversário do lado esquerdo ou direito
@@ -304,23 +306,23 @@ function movePiece() {
             case KING:
                 // verifica se o movimento foi um roque
                 if (Math.abs(fromPosition - toPosition) === 2) {
-                    // adicionar rei na posição intermediaria
-                    if ((1n << BigInt(toPosition)) & WHITE_ROOK_QUEENSIDE) {
-                        //roque grande
-                        console.log("WHITE_ROOK_QUEENSIDE");
+                    // Efeito sonoro de roque
+                    CASTLING_SOUND.play();
+                    isPlayedSound = true;
+
+                    // Adicionar torre na posição do roque curto
+                    if (toPosition === fromPosition - 2) {
+                        // Roque do lado do rei
+                        bitboards[selectedColor][ROOK] &= ~(1n << BigInt(fromPosition - 3));
+                        bitboards[selectedColor][ROOK] |= 1n << BigInt(fromPosition - 1);
                     }
-                    else if ((1n << BigInt(toPosition)) & WHITE_ROOK_KINGSIDE) {
-                        // roque pequeno
-                        console.log("WHITE_ROOK_KINGSIDE");
+                    // Adicionar torre na posição do roque longo
+                    else if (toPosition === fromPosition + 2) {
+                        // Roque do lado da rainha
+                        bitboards[selectedColor][ROOK] &= ~(1n << BigInt(fromPosition + 4));
+                        bitboards[selectedColor][ROOK] |= 1n << BigInt(fromPosition + 1);
                     }
-                    else if ((1n << BigInt(toPosition)) & BLACK_ROOK_QUEENSIDE) {
-                        // roque grande
-                        console.log("BLACK_ROOK_QUEENSIDE");
-                    }
-                    else if ((1n << BigInt(toPosition)) & BLACK_ROOK_KINGSIDE) {
-                        // roque pequeno
-                        console.log("BLACK_ROOK_KINGSIDE");
-                    }
+
                 }
                 if (selectedColor === WHITE) {
                     availableCastlingMask &= ~(WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE); // Remove KQ
@@ -352,18 +354,16 @@ function movePiece() {
         // Verifica se o rei adversário está em xeque
         let opponentCheck = isKingInCheck(bitboards, OPPONENT_COLOR);
         if (opponentCheck) {
-            checkMask = opponentCheck; // Marca o rei adversário
+            kingCheckMask = opponentCheck; // Marca o rei adversário
             // verifica se o rei adversário está em xeque mate
             if (getAllDefenderMovesMask(bitboards, OPPONENT_COLOR) === 0n) {
                 // Efeito sonoro de xeque mate
                 END_SOUND.play();
-
                 let winner = selectedColor === WHITE ? "White" : "Black";
                 // Atualiza a mensagem de xeque mate
                 document.getElementById("end-game-message").textContent = "Checkmate!\n" + winner + " wins.";
                 // Exibe a mensagem de xeque mate
                 document.getElementById("end").style.display = "flex";
-
                 // callback do botão restart
                 document.getElementById("restart-button").addEventListener("click", function () {
                     // Oculta a mensagem de xeque mate
@@ -375,12 +375,17 @@ function movePiece() {
             else {
                 // Efeito sonoro de xeque
                 CHECK_SOUND.play();
+                isPlayedSound = true;
             }
         }
         else {
+            // Desmarca o rei em xeque
+            kingCheckMask = 0n;
+        }
+
+        if (!isPlayedSound) {
             // Efeito sonoro de movimento
             MOVE_SOUND.play();
-            checkMask = 0n;
         }
 
         // Contagem das jogadas completas
@@ -432,7 +437,7 @@ function renderBoard() {
         for (let file = 7; file >= 0; file--) {
             const index = rank * 8 + file; // index do quadrado
             let square = document.createElement("td"); // table data
-            if (checkMask === 1n << BigInt(index)) {
+            if (kingCheckMask === 1n << BigInt(index)) {
                 square.className = "check";
             }
             else {
@@ -536,12 +541,14 @@ function onMove(position) {
                     }
                     // Verifica se a peça está cravada e não pode se mover
                     else if (isPinnedMask(fromPosition, bitboards) != null && !(isPinnedMask(fromPosition, bitboards)) && selectedPiece !== KING) {
-                        // Depuração
-                        console.log("Pinned piece without available moves");
                         availableMoves = 0n;
                         break;
                     }
                     availableMoves = getPieceMovesMask(fromPosition, selectedPiece, selectedColor, bitboards);
+                    // Verifica se a mascara de roque está disponível
+                    if (availableCastlingMask !== 0n) {
+                        availableMoves |= getCastlingMovesMask(currentTurn, bitboards);
+                    }
                 }
             }
         }
@@ -568,8 +575,6 @@ function onMove(position) {
             else {
                 // Efeito sonoro de movimento inválido
                 FAILURE_SOUND.play();
-                // Desmarca o rei que foi marcado na verificação do movimento ilegal
-                checkMask = 0n;
             }
         }
         // Atualiza as variáveis para o próximo movimento
@@ -579,7 +584,6 @@ function onMove(position) {
         availableMoves = 0n;
     }
     renderBoard(); // Renderiza o tabuleiro
-    checkMask = 0n; // Desmarca o rei em xeque
 }
 
 // Função para lidar com o clique no quadrado da tabela
@@ -1461,6 +1465,80 @@ function getAllDefenderMovesMask(bitboards, color) {
     return defenderMask;
 }
 
+function getCastlingMovesMask(color, bitboards) {
+    // Mascara de bits dos movimentos de roque
+    let castlingMoves = 0n;
+    // Mascara de bits de todas as peças do tabuleiro
+    const BLACK_PIECES = bitboards[BLACK][PAWN] | bitboards[BLACK][KNIGHT] | bitboards[BLACK][BISHOP] | bitboards[BLACK][ROOK]
+        | bitboards[BLACK][QUEEN] | bitboards[BLACK][KING];
+    const WHITE_PIECES = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] | bitboards[WHITE][ROOK]
+        | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
+    const ALL_PIECES = BLACK_PIECES | WHITE_PIECES;
+    // Verifica se o rei está em xeque
+    if (isKingInCheck(bitboards, color)) return 0n;
+    // Verifica a cor das peças
+    if (color === WHITE) {
+        // Verifica a torre da ala do rei
+        if (availableCastlingMask & WHITE_ROOK_KINGSIDE) {
+            // Verifica se as casas entre o rei e a torre estão vazias
+            if (!(WHITE_KINGSIDE_CASTLING_EMPTY & ALL_PIECES)) {
+                // Verifica se o rei pode ir para a posição F1 
+                if (getKingSafeMoves(3, WHITE, bitboards) & 1n << BigInt(2)) {
+                    // verifica se pode ir para posição final G1 (da posição F1)
+                    if (getKingSafeMoves(2, WHITE, bitboards) & 1n << BigInt(1)) {
+                        // Adiciona o roque curto na mascara de movimentos
+                        castlingMoves |= 1n << BigInt(1);
+                    }
+                }
+            }
+        }
+        // Verifica a torre da ala da dama
+        if (availableCastlingMask & WHITE_ROOK_QUEENSIDE) {
+            // Verifica se as casas entre o rei e a torre estão vazias
+            if (!(WHITE_QUEENSIDE_CASTLING_EMPTY & ALL_PIECES)) {
+                // Verifica se o rei pode ir para a posição D1
+                if (getKingSafeMoves(3, WHITE, bitboards) & 1n << BigInt(4)) {
+                    // verifica se pode ir para posição final C1 (da posição D1)
+                    if (getKingSafeMoves(4, WHITE, bitboards) & 1n << BigInt(5)) {
+                        // Adiciona o roque grande na mascara de movimentos
+                        castlingMoves |= 1n << BigInt(5);
+                    }
+                }
+            }
+        }
+    } else { // color === BLACK
+        // Verifica a torre da ala do rei
+        if (availableCastlingMask & BLACK_ROOK_KINGSIDE) {
+            // Verifica se as casas entre o rei e a torre estão vazias
+            if (!(BLACK_KINGSIDE_CASTLING_EMPTY & ALL_PIECES)) {
+                // Verifica se o rei pode ir para a posição F8
+                if (getKingSafeMoves(59, BLACK, bitboards) & 1n << BigInt(58)) {
+                    // verifica se pode ir para posição final G8 (da posição F8)
+                    if (getKingSafeMoves(58, BLACK, bitboards) & 1n << BigInt(57)) {
+                        // Adiciona o roque curto na mascara de movimentos
+                        castlingMoves |= 1n << BigInt(57);
+                    }
+                }
+            }
+        }
+        // Verifica a torre da ala da dama
+        if (availableCastlingMask & BLACK_ROOK_QUEENSIDE) {
+            // Verifica se as casas entre o rei e a torre estão vazias
+            if (!(BLACK_QUEENSIDE_CASTLING_EMPTY & ALL_PIECES)) {
+                // Verifica se o rei pode ir para a posição D8
+                if (getKingSafeMoves(59, BLACK, bitboards) & 1n << BigInt(60)) {
+                    // verifica se pode ir para posição final C8 (da posição D8)
+                    if (getKingSafeMoves(60, BLACK, bitboards) & 1n << BigInt(61)) {
+                        // Adiciona o roque grande na mascara de movimentos
+                        castlingMoves |= 1n << BigInt(61);
+                    }
+                }
+            }
+        }
+    }
+    return castlingMoves;
+}
+
 function restart() {
     // Reseta as variáveis 
     availableMoves = 0n;
@@ -1473,7 +1551,7 @@ function restart() {
     currentFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     halfMoves = 0;
     fullMoves = 1;
-    checkMask = 0n;
+    kingCheckMask = 0n;
     availableCastlingMask = WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE | BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE;
     initializeBoard();
     renderBoard();
