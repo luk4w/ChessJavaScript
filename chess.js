@@ -22,7 +22,7 @@ import {
 import { CAPTURE_SOUND, CASTLING_SOUND, CHECK_SOUND, END_SOUND, FAILURE_SOUND, MOVE_SOUND } from './constants/sounds.js';
 
 // Importação das funções
-import { getPawnMoves, getCaptureRight, getCaptureLeft } from './moves/pawn.js';
+import { getPawnMoves } from './moves/pawn.js';
 import { getRookMoves, getR, getL, getU, getD } from './moves/rook.js';
 import { getKnightMoves } from './moves/knight.js';
 import { getBishopMoves, getUR, getUL, getLL, getLR } from './moves/bishop.js';
@@ -356,7 +356,7 @@ function movePiece() {
         if (opponentCheck) {
             kingCheckMask = opponentCheck; // Marca o rei adversário
             // verifica se o rei adversário está em xeque mate
-            if (getAllDefenderMovesMask(bitboards, OPPONENT_COLOR) === 0n) {
+            if (getDefenderMovesMask(bitboards, OPPONENT_COLOR) === 0n) {
                 // Efeito sonoro de xeque mate
                 END_SOUND.play();
                 let winner = selectedColor === WHITE ? "White" : "Black";
@@ -377,6 +377,22 @@ function movePiece() {
                 CHECK_SOUND.play();
                 isPlayedSound = true;
             }
+        }
+        // Verifica o empate por afogamento
+        else if (getMovesMask(OPPONENT_COLOR, bitboards) === 0n) {
+            // Efeito sonoro de empate
+            END_SOUND.play();
+            // Atualiza a mensagem de empate
+            document.getElementById("end-game-message").textContent = "Draw!\nStalemate.";
+            // Exibe a mensagem de empate
+            document.getElementById("end").style.display = "flex";
+            // callback do botão restart
+            document.getElementById("restart-button").addEventListener("click", function () {
+                // Oculta a mensagem de empate
+                document.getElementById("end").style.display = "none";
+                // Reinicia o jogo
+                restart();
+            });
         }
         else {
             // Desmarca o rei em xeque
@@ -527,7 +543,7 @@ function onMove(position) {
                     // Verifica se o rei está em xeque
                     if (isKingInCheck(bitboards, selectedColor)) {
                         // movimentos possiveis para se defender do xeque
-                        let allDefenderMoves = getAllDefenderMovesMask(bitboards, color);
+                        let allDefenderMoves = getDefenderMovesMask(bitboards, color);
                         // Verifica se a peça pode se mover para defender o rei
                         if (getPieceMovesMask(fromPosition, selectedPiece, selectedColor, bitboards) & allDefenderMoves) {
                             availableMoves = getPieceMovesMask(fromPosition, selectedPiece, selectedColor, bitboards) & allDefenderMoves;
@@ -733,7 +749,7 @@ function getCastlingFEN() {
  * @param {Array<Array<BigInt>>} bitboards
  * @returns 
  */
-function getAllMovesMask(color, bitboards) {
+function getMovesMask(color, bitboards) {
     let allMoves = 0n;
     // Iteração das peças
     for (let piece = 0; piece < 6; piece++) {
@@ -784,7 +800,7 @@ function isPinnedMask(fromPosition, bitboards) {
     // Mascara de bits do ataque (posição da peça e quadrados atacados)
     let attackerMask = 0n;
     // Mascara de bits dos movimentos inimigos
-    const ENEMY_MOVES = getAllMovesMask(OPPONENT_COLOR, tempBitboards);
+    const ENEMY_MOVES = getMovesMask(OPPONENT_COLOR, tempBitboards);
     // verifica se o bitboard do rei coincide com algum bit de todos os movimentos de ataque das peças inimigas
     if (KING_MASK & ENEMY_MOVES) {
         // Verifica a posição de quem realiza o ataque descoberto
@@ -1137,7 +1153,7 @@ function getPawnAttackMask(index, color) {
  * @param {Integer} color 
  * @returns mascara de bits dos movimentos possíveis de defesa
  */
-function getAllDefenderMovesMask(bitboards, color) {
+function getDefenderMovesMask(bitboards, color) {
 
     // Copia o estado atual das peças
     let tempBitboards = [
