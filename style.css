@@ -34,6 +34,26 @@ body {
     align-items: center;
 }
 
+.pgn-section {
+    margin-top: 20px;
+    display: flex;
+}
+
+textarea {
+    margin-left: 10px;
+    width: 708px;
+    padding: 10px;
+    font-size: 18px;
+    background-color: #555;
+    color: white;
+    border: none;
+    outline: none;
+    box-sizing: border-box;
+    resize: vertical;
+    border-radius: 8px;
+    min-height: 80px;
+}
+
 input {
     margin-left: 10px;
     width: 708px;
@@ -44,11 +64,11 @@ input {
     border: none;
     outline: none;
     box-sizing: border-box;
+    border-radius: 8px;
 }
 
-.end-section{
+.end-section {
     position: absolute;
-    /*display: flex;*/
     display: none;
     flex-direction: column;
     justify-content: center;
@@ -80,7 +100,7 @@ input {
     margin-bottom: 20px;
 }
 
-.end-section label{
+.end-section label {
     font-family: 'consolas', monospace;
     font-weight: bold;
     line-height: 1.5;
@@ -102,7 +122,7 @@ input {
     background-color: green;
 }
 
-.selected{
+.selected {
     background-color: gray;
 }
 

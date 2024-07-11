@@ -13,8 +13,8 @@
 // stockfish.postMessage('uci');
 
 // Importação das constantes
-import { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING } from './constants/pieces.js';
-import { WHITE, BLACK, PIECES_STRING } from './constants/colors.js';
+import { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, PIECES_STRING, PIECES_SAN } from './constants/pieces.js';
+import { WHITE, BLACK } from './constants/colors.js';
 import {
     WHITE_ROOK_KINGSIDE, WHITE_ROOK_QUEENSIDE, BLACK_ROOK_KINGSIDE, BLACK_ROOK_QUEENSIDE,
     WHITE_KINGSIDE_CASTLING_EMPTY, WHITE_QUEENSIDE_CASTLING_EMPTY, BLACK_KINGSIDE_CASTLING_EMPTY, BLACK_QUEENSIDE_CASTLING_EMPTY
@@ -114,11 +114,24 @@ let toPosition = null; // posição de destino da peça
 // Variáveis para o jogo
 let enPassant = null; // Posição do peão que pode ser capturado com en passant
 let currentTurn = WHITE; // Turno atual
-let currentFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"; // FEN atual
+let currentFEN = ""; // FEN atual
 let halfMoves = 0; // Contagem de 100 movimentos sem captura ou movimento de peão (meio movimento)
 let fullMoves = 1; // Número total de movimentos completos
 let kingCheckMask = 0n; // Máscara do rei em xeque
 let availableCastlingMask = WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE | BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE; // Máscara para os roques disponíveis
+
+// Informações do jogo
+let game = {
+    event: "",
+    site: "",
+    date: "",
+    round: "",
+    white: "",
+    black: "",
+    result: "",
+    moves: [],
+    fen: ""
+};
 
 // Inicializa o tabuleiro de xadrez com as posições iniciais das peças.
 function initializeBoard() {
@@ -231,6 +244,8 @@ function movePiece() {
     const TO_MASK = 1n << BigInt(toPosition);
     // Variável para verificar se algum som ja foi tocado
     let isPlayedSound = false;
+    // Verificar se houve captura de peça
+    let isCapture = false;
 
     if (availableMoves & TO_MASK) {
         // Incrementa os meios movimentos
@@ -268,6 +283,7 @@ function movePiece() {
             // Efeito sonoro de captura
             CAPTURE_SOUND.play();
             isPlayedSound = true;
+            isCapture = true;
             enPassant = null;
             halfMoves = 0;
         }
@@ -286,6 +302,7 @@ function movePiece() {
                     // Efeito sonoro de captura
                     CAPTURE_SOUND.play();
                     isPlayedSound = true;
+                    isCapture = true;
                 }
                 // Verifica se o peão avançou duas casas em seu primeiro movimento
                 if (Math.abs(fromPosition - toPosition) === 16) {
@@ -412,8 +429,15 @@ function movePiece() {
         // Atualiza o turno
         currentTurn = currentTurn === WHITE ? BLACK : WHITE;
 
-        // Atualiza a FEN
+        // Atualiza a FEN no layout
         updateFEN();
+
+        // Registra o movimento em notação algébrica
+        game.moves.push(getSanMove(fromPosition, toPosition, selectedPiece, isCapture));
+        // Registra a fen
+        game.fen = currentFEN;
+        // Atualiza o PGN no layout
+        updatePGN();
 
     } else {
         // Efeito sonoro de movimento inválido
@@ -609,10 +633,6 @@ function handleSquareClick(event) {
     // Verificações que antecedem o movimento
     onMove(index);
 }
-
-// Inicializa o tabuleiro e renderiza
-initializeBoard();
-renderBoard();
 
 /**
     @FEN (Forsyth-Edwards Notation)
@@ -1572,3 +1592,68 @@ function restart() {
     initializeBoard();
     renderBoard();
 }
+
+// Portable Game Notation
+function generatePGN(game) {
+    let pgn = "";
+    // Adicionar os metadados da partida
+    pgn += `[Event "${game.event}"]\n`;
+    pgn += `[Site "${game.site}"]\n`;
+    pgn += `[Date "${game.date}"]\n`;
+    pgn += `[Round "${game.round}"]\n`;
+    pgn += `[White "${game.white}"]\n`;
+    pgn += `[Black "${game.black}"]\n`;
+    pgn += `[Result "${game.result}"]\n\n`;
+    // Adicionar os movimentos da partida
+    for (let i = 0; i < game.moves.length; i++) {
+        if (i % 2 === 0) {
+            pgn += `${Math.floor(i / 2) + 1}. `;
+        }
+        pgn += `${game.moves[i]} `;
+    }
+    // Adicionar o resultado no final
+    pgn += `\n${game.result}`;
+    return pgn;
+}
+
+function getSanMove(from, to, pieceType, isCapture = false, promotionPiece = null) {
+    const FILES = "hgfedcba";
+    const RANKS = "12345678";
+    const FROM_FILE = FILES[from % 8];
+    const FROM_RANK = RANKS[Math.floor(from / 8)];
+    const TO_FILE = FILES[to % 8];
+    const TO_RANK = RANKS[Math.floor(to / 8)];
+    const PIECE = PIECES_SAN[pieceType];
+    const CAPTURE = isCapture ? 'x' : '';
+    const PROMOTION = promotionPiece ? `=${promotionPiece}` : '';
+    return `${PIECE}${FROM_FILE}${FROM_RANK}${CAPTURE}${TO_FILE}${TO_RANK}${PROMOTION}`;
+}
+
+function updatePGN() {
+    let pgn = generatePGN(game);
+    let textarea = document.getElementById("pgn");
+    textarea.value = pgn;
+    textarea.scrollTop = textarea.scrollHeight; // Rola para o final do textarea
+}
+
+function initialize() {
+    // Informações da partida
+    game = {
+        event: "Chess Java Script",
+        site: "",
+        date: new Date().toLocaleDateString().replace(/\//g, "-"),
+        round: "",
+        white: "Player 1",
+        black: "Player 2",
+        result: "",
+        moves: [],
+        fen: ""
+    };
+    // Insere os dados dos bitboards
+    initializeBoard();
+    // Renderiza o tabuleiro
+    renderBoard();
+}
+
+// Inicializa o jogo
+initialize();
