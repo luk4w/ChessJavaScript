@@ -129,8 +129,7 @@ let game = {
     white: "",
     black: "",
     result: "",
-    moves: [],
-    fen: ""
+    moves: []
 };
 
 // Inicializa o tabuleiro de xadrez com as posições iniciais das peças.
@@ -242,11 +241,12 @@ function movePiece() {
         | bitboards[OPPONENT_COLOR][ROOK] | bitboards[OPPONENT_COLOR][QUEEN] | bitboards[OPPONENT_COLOR][KING];
     // Mascara de bits da nova posição
     const TO_MASK = 1n << BigInt(toPosition);
-    // Variável para verificar se algum som ja foi tocado
+    // Verificar se algum som ja foi tocado
     let isPlayedSound = false;
     // Verificar se houve captura de peça
     let isCapture = false;
-
+    // Verificar se houve xeque mate
+    let isMate = false;
     if (availableMoves & TO_MASK) {
         // Incrementa os meios movimentos
         halfMoves++;
@@ -326,7 +326,6 @@ function movePiece() {
                     // Efeito sonoro de roque
                     CASTLING_SOUND.play();
                     isPlayedSound = true;
-
                     // Adicionar torre na posição do roque curto
                     if (toPosition === fromPosition - 2) {
                         // Roque do lado do rei
@@ -339,14 +338,12 @@ function movePiece() {
                         bitboards[selectedColor][ROOK] &= ~(1n << BigInt(fromPosition + 4));
                         bitboards[selectedColor][ROOK] |= 1n << BigInt(fromPosition + 1);
                     }
-
                 }
                 if (selectedColor === WHITE) {
                     availableCastlingMask &= ~(WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE); // Remove KQ
                 } else {
                     availableCastlingMask &= ~(BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE); // Remove kq
                 }
-
                 break;
             case ROOK:
                 if (1n << BigInt(fromPosition) & availableCastlingMask) {
@@ -367,7 +364,6 @@ function movePiece() {
                 }
                 break;
         }
-
         // Verifica se o rei adversário está em xeque
         let opponentCheck = isKingInCheck(bitboards, OPPONENT_COLOR);
         if (opponentCheck) {
@@ -376,6 +372,10 @@ function movePiece() {
             if (getDefenderMovesMask(bitboards, OPPONENT_COLOR) === 0n) {
                 // Efeito sonoro de xeque mate
                 END_SOUND.play();
+                // PGN
+                isMate = true;
+                game.result = selectedColor === WHITE ? "1-0" : "0-1";
+                // Indica o vencedor
                 let winner = selectedColor === WHITE ? "White" : "Black";
                 // Atualiza a mensagem de xeque mate
                 document.getElementById("end-game-message").textContent = "Checkmate!\n" + winner + " wins.";
@@ -395,10 +395,13 @@ function movePiece() {
                 isPlayedSound = true;
             }
         }
+
         // Verifica o empate por afogamento
         else if (getMovesMask(OPPONENT_COLOR, bitboards) === 0n) {
             // Efeito sonoro de empate
             END_SOUND.play();
+            // PGN
+            game.result = "1/2-1/2";
             // Atualiza a mensagem de empate
             document.getElementById("end-game-message").textContent = "Draw!\nStalemate.";
             // Exibe a mensagem de empate
@@ -415,27 +418,21 @@ function movePiece() {
             // Desmarca o rei em xeque
             kingCheckMask = 0n;
         }
-
         if (!isPlayedSound) {
             // Efeito sonoro de movimento
             MOVE_SOUND.play();
         }
-
         // Contagem das jogadas completas
         if (currentTurn === BLACK) {
             fullMoves++;
         }
-
         // Atualiza o turno
         currentTurn = currentTurn === WHITE ? BLACK : WHITE;
-
         // Atualiza a FEN no layout
         updateFEN();
-
         // Registra o movimento em notação algébrica
-        game.moves.push(getSanMove(fromPosition, toPosition, selectedPiece, isCapture));
-        // Registra a fen
-        game.fen = currentFEN;
+        const isCheck = kingCheckMask !== 0n;
+        game.moves.push(getSanMove(fromPosition, toPosition, selectedPiece, isCapture, null, isCheck, isMate));
         // Atualiza o PGN no layout
         updatePGN();
 
@@ -1061,26 +1058,33 @@ function isIllegalMove() {
  * @returns {BigInt} Mascara dos movimentos seguros do rei
  */
 function getKingSafeMoves(from, color, bitboards) {
+    // Movimentos possíveis do rei
     let moves = 0n;
-    let kingMovesMask = getKingMoves(from, color, bitboards);
+    // Constantes
     const OPPONENT_COLOR = color === WHITE ? BLACK : WHITE;
-    let attackerMask = getAttackerMask(OPPONENT_COLOR, bitboards);
-
-    // Remove os movimentos que o rei não pode realizar
-    moves = kingMovesMask & ~attackerMask;
     const OPPONENT_PIECES = bitboards[OPPONENT_COLOR][PAWN] | bitboards[OPPONENT_COLOR][KNIGHT] | bitboards[OPPONENT_COLOR][BISHOP]
         | bitboards[OPPONENT_COLOR][ROOK] | bitboards[OPPONENT_COLOR][QUEEN] | bitboards[OPPONENT_COLOR][KING];
+    let kingMovesMask = getKingMoves(from, color, bitboards);
+    // copia o estado atual das peças
+    let tempBitboards = [
+        bitboards[WHITE].map(bitboard => BigInt(bitboard)),
+        bitboards[BLACK].map(bitboard => BigInt(bitboard))
+    ];
+    // Remove o rei da posição de origem
+    tempBitboards[color][KING] &= ~(1n << BigInt(from))
+    // Obtem a mascara de todos os ataques possíveis
+    let attackerMask = getAttackerMask(OPPONENT_COLOR, tempBitboards);
+    // Adiciona o rei novamente na posição de origem
+    tempBitboards[color][KING] |= 1n << BigInt(from);
+    // Remove os movimentos que o rei não pode realizar
+    moves = kingMovesMask & ~attackerMask;
     if (kingMovesMask & OPPONENT_PIECES) {
         // itera para ver qual peça capturou e se é um movimento legal
         for (let p = 0; p < 6; p++) {
             if (bitboards[OPPONENT_COLOR][p] & kingMovesMask) {
                 for (let i = 0; i < 64; i++) {
                     if (1n << BigInt(i) & kingMovesMask) {
-                        // copia o estado atual das peças
-                        let tempBitboards = [
-                            bitboards[WHITE].map(bitboard => BigInt(bitboard)),
-                            bitboards[BLACK].map(bitboard => BigInt(bitboard))
-                        ];
+
                         // Remove a peça do adversário
                         tempBitboards[OPPONENT_COLOR][p] &= ~(1n << BigInt(i));
                         // Remove o rei da posição de origem
@@ -1363,7 +1367,7 @@ function getDefenderMovesMask(bitboards, color) {
 
     // Se for atacado por mais de uma peça, somente o movimento de rei é possível	
     if (attackersCount > 1) {
-        console.log("attackerCOunt > 1  === " + attackersCount);
+        // console.log("attackerCOunt > 1  === " + attackersCount);
         return kingMovesMask;
     }
 
@@ -1588,15 +1592,16 @@ function restart() {
     halfMoves = 0;
     fullMoves = 1;
     kingCheckMask = 0n;
-    availableCastlingMask = WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE | BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE;
-    initializeBoard();
-    renderBoard();
+    availableCastlingMask = WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE | BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE;;
+    initialize();
+    updateFEN();
+    updatePGN();
 }
 
 // Portable Game Notation
 function generatePGN(game) {
     let pgn = "";
-    // Adicionar os metadados da partida
+    // Metadados da partida
     pgn += `[Event "${game.event}"]\n`;
     pgn += `[Site "${game.site}"]\n`;
     pgn += `[Date "${game.date}"]\n`;
@@ -1604,19 +1609,17 @@ function generatePGN(game) {
     pgn += `[White "${game.white}"]\n`;
     pgn += `[Black "${game.black}"]\n`;
     pgn += `[Result "${game.result}"]\n\n`;
-    // Adicionar os movimentos da partida
+    // Movimentos da partida
     for (let i = 0; i < game.moves.length; i++) {
         if (i % 2 === 0) {
             pgn += `${Math.floor(i / 2) + 1}. `;
         }
         pgn += `${game.moves[i]} `;
     }
-    // Adicionar o resultado no final
-    pgn += `\n${game.result}`;
     return pgn;
 }
 
-function getSanMove(from, to, pieceType, isCapture = false, promotionPiece = null) {
+function getSanMove(from, to, pieceType, isCapture, promotionPiece, isCheck, isCheckmate) {
     const FILES = "hgfedcba";
     const RANKS = "12345678";
     const FROM_FILE = FILES[from % 8];
@@ -1626,7 +1629,10 @@ function getSanMove(from, to, pieceType, isCapture = false, promotionPiece = nul
     const PIECE = PIECES_SAN[pieceType];
     const CAPTURE = isCapture ? 'x' : '';
     const PROMOTION = promotionPiece ? `=${promotionPiece}` : '';
-    return `${PIECE}${FROM_FILE}${FROM_RANK}${CAPTURE}${TO_FILE}${TO_RANK}${PROMOTION}`;
+    let check = isCheck ? "+" : "";
+    const CHECKMATE = isCheckmate ? '#' : '';
+    if (isCheckmate) check = '';
+    return `${PIECE}${FROM_FILE}${FROM_RANK}${CAPTURE}${TO_FILE}${TO_RANK}${PROMOTION}${check}${CHECKMATE}`;
 }
 
 function updatePGN() {
@@ -1639,13 +1645,13 @@ function updatePGN() {
 function initialize() {
     // Informações da partida
     game = {
-        event: "Chess Java Script",
-        site: "",
+        event: "",
+        site: "Chess Java Script",
         date: new Date().toLocaleDateString().replace(/\//g, "-"),
-        round: "",
+        round: "1",
         white: "Player 1",
         black: "Player 2",
-        result: "",
+        result: "*",
         moves: [],
         fen: ""
     };
