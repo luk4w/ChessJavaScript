@@ -18,7 +18,8 @@ function getPawnMoves(from, color, bitboards, enPassant) {
     const OPPONENT_PIECES = color === WHITE ? BLACK_PIECES : WHITE_PIECES;
     const ADVANCE = color === WHITE ? 8n : -8n;
     const DOUBLE_ADVANCE = color === WHITE ? 16n : -16n;
-    const START_ROWS = 0x00FF00000000FF00n;
+    const START_ROW = color === WHITE ? 0x000000000000FF00n : 0x00FF000000000000n;
+
     // Movimento de avanço simples
     let movement = 1n << (BigInt(from) + ADVANCE);
     // Verifica se a casa está vazia
@@ -27,8 +28,8 @@ function getPawnMoves(from, color, bitboards, enPassant) {
     }
     // Movimento de avanço duplo
     movement = 1n << (BigInt(from) + DOUBLE_ADVANCE);
-    // Verifica se o peão está nas linhas iniciais
-    if (START_ROWS & (1n << BigInt(from))) {
+    // Verifica se o peão está na linha inicial e se a casa intermediaria e final estão vazias
+    if (START_ROW & (1n << BigInt(from))) {
         // Calcula a casa intermediaria
         let middleSquare = 1n << (BigInt(from) + ADVANCE);
         // Verifica se a casa intermediaria e final estão vazias
