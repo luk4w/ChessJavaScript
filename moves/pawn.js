@@ -19,7 +19,6 @@ function getPawnMoves(from, color, bitboards, enPassant) {
     const ADVANCE = color === WHITE ? 8n : -8n;
     const DOUBLE_ADVANCE = color === WHITE ? 16n : -16n;
     const START_ROW = color === WHITE ? 0x000000000000FF00n : 0x00FF000000000000n;
-
     // Movimento de avanço simples
     let movement = 1n << (BigInt(from) + ADVANCE);
     // Verifica se a casa está vazia
@@ -38,62 +37,30 @@ function getPawnMoves(from, color, bitboards, enPassant) {
         }
     }
     // Movimentos de captura
-    bitboardMoves |= getCaptureLeft(from, color, bitboards);
-    bitboardMoves |= getCaptureRight(from, color, bitboards);
+    const CAPTURE_RIGHT = color === WHITE ? ((1n << BigInt(from)) << 7n) : ((1n << BigInt(from)) >> 9n);
+    const CAPTURE_LEFT = color === WHITE ? ((1n << BigInt(from)) << 9n) : ((1n << BigInt(from)) >> 7n);
+    // Verifica a captura para a direita
+    if (CAPTURE_RIGHT & OPPONENT_PIECES) {
+        bitboardMoves |= CAPTURE_RIGHT;
+    }
+    // Verifica a captura para a esquerda
+    if (CAPTURE_LEFT & OPPONENT_PIECES) {
+        bitboardMoves |= CAPTURE_LEFT;
+    }
     // Movimento de captura en passant
     if (enPassant !== null) {
         // Posicoes laterais
-        let p1 = color === WHITE ? from + 1 : from - 1;
-        let p2 = color === WHITE ? from - 1 : from + 1;
-        // se a posição lateral s1 for igual a do peão marcado para captura en passant
-        if (p1 === enPassant) {
-            bitboardMoves |= getCaptureLeft(from, color, bitboards);
+        const LEFT = color === WHITE ? from + 1 : from - 1;
+        const RIGHT = color === WHITE ? from - 1 : from + 1;
+        // se a posição lateral a esquerda for igual a do peão marcado para captura en passant
+        if (LEFT === enPassant) {
+            bitboardMoves |= CAPTURE_LEFT;
         }
-        // se a posição lateral s2 for igual a do peão marcado para captura en passant
-        else if (p2 === enPassant) {
-            bitboardMoves |= getCaptureRight(from, color, bitboards);
+        // se a posição lateral a direita for igual a do peão marcado para captura en passant
+        else if (RIGHT === enPassant) {
+            bitboardMoves |= CAPTURE_RIGHT;
         }
     }
     return bitboardMoves;
 }
-/** Captura para a esquerda
- * @param {Integer} from
- * @param {Integer} color
- * @param {Array<Array<BigInt>>} bitboards
- * @returns {BigInt}
-*/
-function getCaptureLeft(from, color, bitboards) {
-    let captureLeft = color === WHITE ? ((1n << BigInt(from)) << 9n) : ((1n << BigInt(from)) >> 9n);
-    // Variáveis comuns
-    const BLACK_PIECES = bitboards[BLACK][PAWN] | bitboards[BLACK][KNIGHT] | bitboards[BLACK][BISHOP] | bitboards[BLACK][ROOK]
-        | bitboards[BLACK][QUEEN] | bitboards[BLACK][KING];
-    const WHITE_PIECES = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] | bitboards[WHITE][ROOK]
-        | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
-    const OPPONENT_PIECES = color === WHITE ? BLACK_PIECES : WHITE_PIECES;
-    // Verifica a captura para a esquerda
-    if (captureLeft & OPPONENT_PIECES) {
-        return captureLeft;
-    }
-    return 0n;
-}
-/** Captura para a direita
- * @param {Integer} from
- * @param {Integer} color
- * @param {Array<Array<BigInt>>} bitboards
- * @returns {BigInt}
-*/
-function getCaptureRight(from, color, bitboards) {
-    let captureRight = color === WHITE ? ((1n << BigInt(from)) << 7n) : ((1n << BigInt(from)) >> 7n);
-    // Variáveis comuns
-    const BLACK_PIECES = bitboards[BLACK][PAWN] | bitboards[BLACK][KNIGHT] | bitboards[BLACK][BISHOP] | bitboards[BLACK][ROOK]
-        | bitboards[BLACK][QUEEN] | bitboards[BLACK][KING];
-    const WHITE_PIECES = bitboards[WHITE][PAWN] | bitboards[WHITE][KNIGHT] | bitboards[WHITE][BISHOP] | bitboards[WHITE][ROOK]
-        | bitboards[WHITE][QUEEN] | bitboards[WHITE][KING];
-    const OPPONENT_PIECES = color === WHITE ? BLACK_PIECES : WHITE_PIECES;
-    // Verifica a captura para a esquerda
-    if (captureRight & OPPONENT_PIECES) {
-        return captureRight;
-    }
-    return 0n;
-}
-export { getPawnMoves, getCaptureLeft, getCaptureRight };
+export { getPawnMoves };
