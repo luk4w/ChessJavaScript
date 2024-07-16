@@ -155,57 +155,67 @@ input {
 .piece {
     width: 100%;
     height: 100%;
-    background-image: url('sprite.png');
-    background-size: 600%;
     position: absolute;
     top: 0;
     left: 0;
 }
 
 .white_king {
-    background-position: 0% 0%;
+    background-image: url('images/white_king.png');
+    background-size: contain;
 }
 
 .white_queen {
-    background-position: 20% 0%;
+    background-image: url('images/white_queen.png');
+    background-size: contain;
 }
 
 .white_bishop {
-    background-position: 40% 0%;
+    background-image: url('images/white_bishop.png');
+    background-size: contain;
 }
 
 .white_knight {
-    background-position: 60% 0%;
+    background-image: url('images/white_knight.png');
+    background-size: contain;
 }
 
 .white_rook {
-    background-position: 80% 0%;
+    background-image: url('images/white_rook.png');
+    background-size: contain;
 }
 
 .white_pawn {
-    background-position: 100% 0%;
+    background-image: url('images/white_pawn.png');
+    background-size: contain;
 }
 
 .black_king {
-    background-position: 0% 100%;
+    background-image: url('images/black_king.png');
+    background-size: contain;
 }
 
 .black_queen {
-    background-position: 20% 100%;
+    background-image: url('images/black_queen.png');
+    background-size: contain;
 }
 
 .black_bishop {
-    background-position: 40% 100%;
+    background-image: url('images/black_bishop.png');
+    background-size: contain;
 }
 
 .black_knight {
-    background-position: 60% 100%;
+    background-image: url('images/black_knight.png');
+    background-size: contain;
 }
 
 .black_rook {
-    background-position: 80% 100%;
+    background-image: url('images/black_rook.png');
+    background-size: contain;
 }
 
 .black_pawn {
-    background-position: 100% 100%;
+    background-image: url('images/black_pawn.png');
+    background-size: contain;
 }
