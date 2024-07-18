@@ -63,4 +63,29 @@ function getPawnMoves(from, color, bitboards, enPassant) {
     }
     return bitboardMoves;
 }
-export { getPawnMoves };
+
+/**
+ * Obtem a mascara de ataque de um peão
+ * @param {Integer} index
+ * @param {Integer} color
+ * @returns {BigInt} Mascara de ataque do peão
+ */
+function getPawnAttackerMask(index, color) {
+    const WHITE_CAPTURE_RIGHT = (1n << BigInt(index)) << 7n;
+    const WHITE_CAPTURE_LEFT = (1n << BigInt(index)) << 9n;
+    const BLACK_CAPTURE_RIGHT = (1n << BigInt(index)) >> 9n;
+    const BLACK_CAPTURE_LEFT = (1n << BigInt(index)) >> 7n;
+
+    if (color === WHITE) {
+        if (index % 8 === 0) return WHITE_CAPTURE_LEFT;
+        if (index % 8 === 7) return WHITE_CAPTURE_RIGHT;
+        return WHITE_CAPTURE_LEFT | WHITE_CAPTURE_RIGHT;
+    }
+    else {
+        if (index % 8 === 0) return BLACK_CAPTURE_LEFT;
+        if (index % 8 === 7) return BLACK_CAPTURE_RIGHT;
+        return BLACK_CAPTURE_LEFT | BLACK_CAPTURE_RIGHT;
+    }
+}
+
+export { getPawnMoves, getPawnAttackerMask };

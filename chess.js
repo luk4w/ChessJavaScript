@@ -23,7 +23,7 @@ import { CAPTURE_SOUND, CASTLING_SOUND, CHECK_SOUND, END_SOUND, FAILURE_SOUND, M
 import { NOT_1_RANK, NOT_8_RANK } from './constants/edges.js';
 
 // Importação das funções
-import { getPawnMoves } from './moves/pawn.js';
+import { getPawnMoves, getPawnAttackerMask } from './moves/pawn.js';
 import { getRookMoves, getR, getL, getU, getD } from './moves/rook.js';
 import { getKnightMoves } from './moves/knight.js';
 import { getBishopMoves, getUR, getUL, getLL, getLR } from './moves/bishop.js';
@@ -1297,7 +1297,7 @@ function getAttackerMask(color, bitboards) {
             if (bitboards[color][op] & (1n << BigInt(i))) {
                 switch (op) {
                     case PAWN:
-                        attackerMask |= getPawnAttackMask(i, color);
+                        attackerMask |= getPawnAttackerMask(i, color);
                         break;
                     case ROOK:
                         attackerMask |= getRookMoves(i, color, bitboards);
@@ -1319,30 +1319,6 @@ function getAttackerMask(color, bitboards) {
         }
     }
     return attackerMask;
-}
-
-/**
- * Obtem a mascara de ataque de um peão
- * @param {Integer} index
- * @param {Integer} color
- * @returns {BigInt} Mascara de ataque do peão
- */
-function getPawnAttackMask(index, color) {
-    const WHITE_CAPTURE_RIGHT = (1n << BigInt(index)) << 7n;
-    const WHITE_CAPTURE_LEFT = (1n << BigInt(index)) << 9n;
-    const BLACK_CAPTURE_RIGHT = (1n << BigInt(index)) >> 9n;
-    const BLACK_CAPTURE_LEFT = (1n << BigInt(index)) >> 7n;
-
-    if (color === WHITE) {
-        if (index % 8 === 0) return WHITE_CAPTURE_LEFT;
-        if (index % 8 === 7) return WHITE_CAPTURE_RIGHT;
-        return WHITE_CAPTURE_LEFT | WHITE_CAPTURE_RIGHT;
-    }
-    else {
-        if (index % 8 === 0) return BLACK_CAPTURE_LEFT;
-        if (index % 8 === 7) return BLACK_CAPTURE_RIGHT;
-        return BLACK_CAPTURE_LEFT | BLACK_CAPTURE_RIGHT;
-    }
 }
 
 /**
@@ -1498,10 +1474,10 @@ function getDefenderMovesMask(bitboards, color) {
                         }
                         break;
                     case PAWN:
-                        if (getPawnAttackMask(i, OPPONENT_COLOR) & KING_MASK) {
+                        if (getPawnAttackerMask(i, OPPONENT_COLOR) & KING_MASK) {
                             attackersCount++;
                             attackerPositionMask |= 1n << BigInt(i);
-                            attackerMask |= (getPawnAttackMask(i, OPPONENT_COLOR));
+                            attackerMask |= (getPawnAttackerMask(i, OPPONENT_COLOR));
                         }
                         break;
                     case KNIGHT:
