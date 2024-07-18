@@ -122,8 +122,15 @@ input {
     background-color: green;
 }
 
-.selected {
-    background-color: gray;
+.selected::before {
+    background-color: yellowgreen;
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.5;
 }
 
 .check {
@@ -150,6 +157,21 @@ input {
 .capture {
     position: relative;
     border-radius: 25px;
+}
+
+.dimmed {
+    opacity: 0.25;
+}
+
+.promotion::before {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: black;
+    opacity: 0.5;
+    pointer-events: none;
 }
 
 .piece {

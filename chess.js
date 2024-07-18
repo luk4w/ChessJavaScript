@@ -20,6 +20,7 @@ import {
     WHITE_KINGSIDE_CASTLING_EMPTY, WHITE_QUEENSIDE_CASTLING_EMPTY, BLACK_KINGSIDE_CASTLING_EMPTY, BLACK_QUEENSIDE_CASTLING_EMPTY
 } from './constants/castling.js';
 import { CAPTURE_SOUND, CASTLING_SOUND, CHECK_SOUND, END_SOUND, FAILURE_SOUND, MOVE_SOUND } from './constants/sounds.js';
+import { NOT_1_RANK, NOT_8_RANK } from './constants/edges.js';
 
 // Importação das funções
 import { getPawnMoves } from './moves/pawn.js';
@@ -119,6 +120,8 @@ let halfMoves = 0; // Contagem de 100 movimentos sem captura ou movimento de pe�
 let fullMoves = 1; // Número total de movimentos completos
 let kingCheckMask = 0n; // Máscara do rei em xeque
 let availableCastlingMask = WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE | BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE; // Máscara para os roques disponíveis
+let isPromotion = false; // Verifica se está ocorrendo uma promoção de peão
+let isMate = false; // Verificar se houve xeque mate
 
 // Informações do jogo
 let game = {
@@ -155,8 +158,9 @@ function initializeBoard() {
 }
 
 /** 
-    @COMPORTAMENTO_DE_MEMORIA_PARA_REMOVER_PECA
- 
+    @COMPORTAMENTO_DE_MEMORIA_PARA_O_MOVIMENTO_DA_PEÇA
+
+    @REMOVER_PEÇA
     @FROM 8 (h2)
 
          a b c d e f g h
@@ -184,8 +188,8 @@ function initializeBoard() {
     2    1 1 1 1 1 1 1 1
     1    0 0 0 0 0 0 0 0
 
-                             bitboards[0][0]:      00000000 00000000 00000000 00000000 00000000 00000000 11111111 00000000 
-                                        from:      8 (h2)
+    bitboards[0][0]:      00000000 00000000 00000000 00000000 00000000 00000000 11111111 00000000 
+    from:      8 (h2)
 
     @DESLOCAMENTO_A_ESQUERDA (Conversão da posição "from" para uma mascara de bits)
                           1n << BigInt(from):      00000000 00000000 00000000 00000000 00000000 00000000 00000001 00000000 
@@ -194,11 +198,10 @@ function initializeBoard() {
                        ~(1n << BigInt(from)):      11111111 11111111 11111111 11111111 11111111 11111111 11111110 11111111
 
     @AND
-                             bitboards[0][0]:      00000000 00000000 00000000 00000000 00000000 00000000 11111111 00000000 
+    bitboards[0][0]:      00000000 00000000 00000000 00000000 00000000 00000000 11111111 00000000 
     bitboards[0][0] &= ~(1n << BigInt(from)):      00000000 00000000 00000000 00000000 00000000 00000000 11111110 00000000 
 
-    @COMPORTAMENTO_DE_MEMORIA_PARA_ADICIONAR_PECA
-
+    @ADICIONAR_PEÇA
     @TO 16 (h3)
 
          a b c d e f g h
@@ -231,13 +234,14 @@ function initializeBoard() {
     @OR
                           bitboards[0][0]:         00000000 00000000 00000000 00000000 00000000 00000000 11111110 00000000
     bitboards[0][0] |= (1n << BigInt(to)):         00000000 00000000 10000000 00000000 00000000 00000001 11111110 00000000
- 
+    
 */
+
 function movePiece() {
     // Cor da peça adversária
     const OPPONENT_COLOR = selectedColor === WHITE ? BLACK : WHITE;
     // Bitboards das peças adversárias
-    let opponentPices = bitboards[OPPONENT_COLOR][PAWN] | bitboards[OPPONENT_COLOR][KNIGHT] | bitboards[OPPONENT_COLOR][BISHOP]
+    const OPPONENT_PIECES = bitboards[OPPONENT_COLOR][PAWN] | bitboards[OPPONENT_COLOR][KNIGHT] | bitboards[OPPONENT_COLOR][BISHOP]
         | bitboards[OPPONENT_COLOR][ROOK] | bitboards[OPPONENT_COLOR][QUEEN] | bitboards[OPPONENT_COLOR][KING];
     // Mascara de bits da nova posição
     const TO_MASK = 1n << BigInt(toPosition);
@@ -245,8 +249,7 @@ function movePiece() {
     let isPlayedSound = false;
     // Verificar se houve captura de peça
     let isCapture = false;
-    // Verificar se houve xeque mate
-    let isMate = false;
+
     if (availableMoves & TO_MASK) {
         // Incrementa os meios movimentos
         halfMoves++;
@@ -255,7 +258,7 @@ function movePiece() {
         // Adiciona a nova posição da peça
         bitboards[selectedColor][selectedPiece] |= TO_MASK;
         // Verifica se houve captura de peça
-        if (TO_MASK & opponentPices) {
+        if (TO_MASK & OPPONENT_PIECES) {
             // Iteração nas bitboards adversárias, para saber qual peça foi capturada
             for (let opponentPiece = 0; opponentPiece < 6; opponentPiece++) {
                 if (bitboards[OPPONENT_COLOR][opponentPiece] & TO_MASK) {
@@ -280,8 +283,6 @@ function movePiece() {
                     }
                 }
             }
-            // Efeito sonoro de captura
-            CAPTURE_SOUND.play();
             isPlayedSound = true;
             isCapture = true;
             enPassant = null;
@@ -290,6 +291,13 @@ function movePiece() {
 
         switch (selectedPiece) {
             case PAWN:
+                // Verifica se o peão chegou ao final do tabuleiro
+                if (TO_MASK & ~NOT_8_RANK || TO_MASK & ~NOT_1_RANK) {
+                    // Informa que está ocorrendo uma promoção de peão
+                    isPromotion = true;
+                    promotionPawn(fromPosition, toPosition, selectedColor, bitboards);
+                    return;
+                }
                 // Obtem os peões adversários
                 const OPPONENT_PAWNS = selectedColor === WHITE ? bitboards[BLACK][PAWN] : bitboards[WHITE][PAWN];
                 const CAPTURE_LEFT = selectedColor === WHITE ? fromPosition + 9 : fromPosition - 9;
@@ -299,8 +307,6 @@ function movePiece() {
                     && (OPPONENT_PAWNS & (1n << BigInt(enPassant)))) {
                     // remove o peão capturado
                     bitboards[OPPONENT_COLOR][PAWN] &= ~(1n << BigInt(enPassant));
-                    // Efeito sonoro de captura
-                    CAPTURE_SOUND.play();
                     isPlayedSound = true;
                     isCapture = true;
                 }
@@ -365,29 +371,13 @@ function movePiece() {
                 break;
         }
         // Verifica se o rei adversário está em xeque
-        let opponentCheck = isKingInCheck(bitboards, OPPONENT_COLOR);
-        if (opponentCheck) {
-            kingCheckMask = opponentCheck; // Marca o rei adversário
+        let opponentKingCheck = isKingInCheck(bitboards, OPPONENT_COLOR);
+        if (opponentKingCheck) {
+            kingCheckMask = opponentKingCheck; // Marca o rei adversário
             // verifica se o rei adversário está em xeque mate
             if (getDefenderMovesMask(bitboards, OPPONENT_COLOR) === 0n) {
-                // Efeito sonoro de xeque mate
-                END_SOUND.play();
-                // PGN
                 isMate = true;
-                game.result = selectedColor === WHITE ? "1-0" : "0-1";
-                // Indica o vencedor
-                let winner = selectedColor === WHITE ? "White" : "Black";
-                // Atualiza a mensagem de xeque mate
-                document.getElementById("end-game-message").textContent = "Checkmate!\n" + winner + " wins.";
-                // Exibe a mensagem de xeque mate
-                document.getElementById("end").style.display = "flex";
-                // callback do botão restart
-                document.getElementById("restart-button").addEventListener("click", function () {
-                    // Oculta a mensagem de xeque mate
-                    document.getElementById("end").style.display = "none";
-                    // Reinicia o jogo
-                    restart();
-                });
+                showCheckmate();
             }
             else {
                 // Efeito sonoro de xeque
@@ -395,30 +385,19 @@ function movePiece() {
                 isPlayedSound = true;
             }
         }
-
         // Verifica o empate por afogamento
         else if (getMovesMask(OPPONENT_COLOR, bitboards) === 0n) {
-            // Efeito sonoro de empate
-            END_SOUND.play();
-            // PGN
-            game.result = "1/2-1/2";
-            // Atualiza a mensagem de empate
-            document.getElementById("end-game-message").textContent = "Draw!\nStalemate.";
-            // Exibe a mensagem de empate
-            document.getElementById("end").style.display = "flex";
-            // callback do botão restart
-            document.getElementById("restart-button").addEventListener("click", function () {
-                // Oculta a mensagem de empate
-                document.getElementById("end").style.display = "none";
-                // Reinicia o jogo
-                restart();
-            });
+            showDraw();
         }
         else {
             // Desmarca o rei em xeque
             kingCheckMask = 0n;
         }
-        if (!isPlayedSound) {
+        if (isCapture) {
+            // Efeito sonoro de captura
+            CAPTURE_SOUND.play();
+        }
+        else if (!isPlayedSound) {
             // Efeito sonoro de movimento
             MOVE_SOUND.play();
         }
@@ -439,7 +418,6 @@ function movePiece() {
     } else {
         // Efeito sonoro de movimento inválido
         FAILURE_SOUND.play();
-        return;
     }
 }
 
@@ -498,7 +476,7 @@ function renderBoard() {
             }
 
             square.dataset.index = index; // armazena o index do quadrado
-            square.addEventListener("click", handleSquareClick); // adiciona o evento de clique
+            square.addEventListener("click", handleOnMoveClick); // adiciona o evento de clique
             row.appendChild(square); // adiciona a quadrado na linha
         }
         boardElement.appendChild(row); // adiciona a linha ao tabuleiro
@@ -507,6 +485,186 @@ function renderBoard() {
     // Atualização das peças no tabuleiro
     updatePiecesOnBoard();
 }
+
+function promotionPawn(fromPosition, toPosition, color) {
+    const boardElement = document.getElementById("chessboard");
+    const squares = boardElement.getElementsByTagName("td");
+
+    // Remove os efeitos visuais e adiciona esmaecimento a todos os quadrados
+    for (let square of squares) {
+        square.classList.remove("available", "selected");
+        square.classList.add("dimmed");
+        square.removeEventListener("click", handleOnMoveClick);
+        // Adiciona o evento de clique a todos os quadrados
+        square.addEventListener("click", handlePromotionClick);
+    }
+
+    // Determina as posições das peças que aparecerão para a promoção (em relação ao bitboard)
+    const promotionPositions = color === WHITE ? [toPosition, toPosition - 8, toPosition - 16, toPosition - 24]
+        : [toPosition, toPosition + 8, toPosition + 16, toPosition + 24];
+
+    // Evento de clique para a promoção
+    function handlePromotionClick(event) {
+        // Obtem a mascara da posição de destino
+        const TO_MASK = 1n << BigInt(toPosition);
+        // Obtém a peça selecionada para a promoção
+        const index = parseInt(event.currentTarget.dataset.index);
+        // Verifica se a peça selecionada está entre as posições de promoção
+        if (promotionPositions.includes(index)) {
+            // Verificar se houve captura de peça
+            let isCapture = false;
+            // Obtém a peça de promoção
+            let promotionPiece = getPromotionPiece(index);
+            // Efeito sonoro de promoção
+            MOVE_SOUND.play();
+            // Remove o peão
+            bitboards[color][PAWN] &= ~TO_MASK;
+            // Adiciona a peça promovida
+            bitboards[color][promotionPiece] |= TO_MASK;
+            // Cor da peça adversária
+            const OPPONENT_COLOR = color === WHITE ? BLACK : WHITE;
+            // Bitboards das peças adversárias
+            const OPPONENT_PIECES = bitboards[OPPONENT_COLOR][PAWN] | bitboards[OPPONENT_COLOR][KNIGHT] | bitboards[OPPONENT_COLOR][BISHOP]
+                | bitboards[OPPONENT_COLOR][ROOK] | bitboards[OPPONENT_COLOR][QUEEN] | bitboards[OPPONENT_COLOR][KING];
+            // Verifica se houve captura de peça
+            if (TO_MASK & OPPONENT_PIECES) {
+                isCapture = true;
+            }
+            // Verifica se o rei adversário está em xeque
+            let opponentKingCheck = isKingInCheck(bitboards, OPPONENT_COLOR);
+            if (opponentKingCheck) {
+                kingCheckMask = opponentKingCheck; // Marca o rei adversário
+                // verifica se o rei adversário está em xeque mate
+                if (getDefenderMovesMask(bitboards, OPPONENT_COLOR) === 0n) {
+                    isMate = true;
+                    showCheckmate();
+                }
+                else {
+                    // Efeito sonoro de xeque
+                    CHECK_SOUND.play();
+                }
+            }
+            // Verifica o empate por afogamento
+            else if (getMovesMask(OPPONENT_COLOR, bitboards) === 0n) {
+                showDraw();
+            }
+            else {
+                // Desmarca o rei em xeque
+                kingCheckMask = 0n;
+            }
+            if (isCapture) {
+                // Efeito sonoro de captura
+                CAPTURE_SOUND.play();
+            }
+            else {
+                MOVE_SOUND.play();
+            }
+            // Contagem das jogadas completas
+            if (currentTurn === BLACK) {
+                fullMoves++;
+            }
+            // Atualiza o turno
+            currentTurn = currentTurn === WHITE ? BLACK : WHITE;
+            // Atualiza a FEN no layout
+            updateFEN();
+            // Registra o movimento em notação algébrica
+            const isCheck = kingCheckMask !== 0n;
+            game.moves.push(getSanMove(fromPosition, toPosition, selectedPiece, isCapture, promotionPiece, isCheck, isMate));
+            // Atualiza o PGN no layout
+            updatePGN();
+            // Atualiza o tabuleiro com a peça promovida
+            renderBoard();
+            isPromotion = false;
+        }
+        else {
+            // Restaura o peão
+            bitboards[color][PAWN] |= 1n << BigInt(fromPosition);
+            // Remove o peão da nova posição
+            bitboards[color][PAWN] &= ~TO_MASK;
+            // Atualiza o tabuleiro com a peça promovida
+            renderBoard();
+            isPromotion = false;
+        }
+    }
+
+    // Adiciona as peças de promoção e destaca os quadrados
+    for (let i in promotionPositions) {
+        // Obtém o índice do quadrado
+        const indexHTML = 63 - promotionPositions[i];
+        // Obtém o quadrado
+        const square = squares[indexHTML];
+        // Adiciona a peça ao tabuleiro
+        addPieceToBoard(promotionPositions[i], getPromotionPiece(indexHTML), color);
+        // Remove o efeito de esmaecimento
+        square.classList.remove("dimmed");
+        // Adiciona o efeito de promoção
+        square.classList.add("promotion");
+        // Define o índice para identificar qual quadrado foi clicado
+        square.dataset.index = promotionPositions[i];
+    }
+}
+
+function showCheckmate() {
+    // Efeito sonoro de xeque mate
+    END_SOUND.play();
+    // PGN
+    game.result = selectedColor === WHITE ? "1-0" : "0-1";
+    // Indica o vencedor
+    let winner = selectedColor === WHITE ? "White" : "Black";
+    // Atualiza a mensagem de xeque mate
+    document.getElementById("end-game-message").textContent = "Checkmate!\n" + winner + " wins.";
+    // Exibe a mensagem de xeque mate
+    document.getElementById("end").style.display = "flex";
+    // callback do botão restart
+    document.getElementById("restart-button").addEventListener("click", function () {
+        // Oculta a mensagem de xeque mate
+        document.getElementById("end").style.display = "none";
+        // Reinicia o jogo
+        restart();
+    });
+
+
+}
+
+function showDraw() {
+    // Efeito sonoro de empate
+    END_SOUND.play();
+    // PGN
+    game.result = "1/2-1/2";
+    // Atualiza a mensagem de empate
+    document.getElementById("end-game-message").textContent = "Draw!\nStalemate.";
+    // Exibe a mensagem de empate
+    document.getElementById("end").style.display = "flex";
+    // callback do botão restart
+    document.getElementById("restart-button").addEventListener("click", function () {
+        // Oculta a mensagem de empate
+        document.getElementById("end").style.display = "none";
+        // Reinicia o jogo
+        restart();
+    });
+
+}
+
+function getPromotionPiece(index) {
+    let rank = Math.floor(index / 8);
+    switch (rank) {
+        case 0:
+        case 7:
+            return QUEEN;
+        case 1:
+        case 6:
+            return KNIGHT;
+        case 2:
+        case 5:
+            return ROOK;
+        case 3:
+        case 4:
+            return BISHOP;
+        default:
+            return null;
+    }
+}
+
 
 // Função para atualizar todas as peças no tabuleiro
 function updatePiecesOnBoard() {
@@ -583,7 +741,7 @@ function onMove(position) {
                     }
                     availableMoves = getPieceMovesMask(fromPosition, selectedPiece, selectedColor, bitboards);
                     // Verifica se a mascara de roque está disponível
-                    if (availableCastlingMask !== 0n) {
+                    if (availableCastlingMask !== 0n && selectedPiece === KING) {
                         availableMoves |= getCastlingMovesMask(currentTurn, bitboards);
                     }
                 }
@@ -606,7 +764,7 @@ function onMove(position) {
         } else {
             // Verifica se o movimento não é ilegal
             if (!isIllegalMove()) {
-                // Movimenta a peça a partir das variaveis definidas no escopo global
+                // Movimenta a peça
                 movePiece();
             }
             else {
@@ -620,11 +778,14 @@ function onMove(position) {
         toPosition = null;
         availableMoves = 0n;
     }
-    renderBoard(); // Renderiza o tabuleiro
+    // Se não estiver ocorrendo uma promoção de peão
+    if (!isPromotion) {
+        renderBoard(); // Renderiza o tabuleiro
+    }
 }
 
 // Função para lidar com o clique no quadrado da tabela
-function handleSquareClick(event) {
+function handleOnMoveClick(event) {
     // Obtem o indice do quadrado clicado
     const index = parseInt(event.currentTarget.dataset.index);
     // Verificações que antecedem o movimento
@@ -1628,7 +1789,7 @@ function getSanMove(from, to, pieceType, isCapture, promotionPiece, isCheck, isC
     const TO_RANK = RANKS[Math.floor(to / 8)];
     const PIECE = PIECES_SAN[pieceType];
     const CAPTURE = isCapture ? 'x' : '';
-    const PROMOTION = promotionPiece ? `=${promotionPiece}` : '';
+    const PROMOTION = promotionPiece ? `=${PIECES_SAN[promotionPiece]}` : '';
     let check = isCheck ? "+" : "";
     const CHECKMATE = isCheckmate ? '#' : '';
     if (isCheckmate) check = '';
