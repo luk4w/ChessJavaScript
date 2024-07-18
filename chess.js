@@ -476,7 +476,8 @@ function renderBoard() {
             }
 
             square.dataset.index = index; // armazena o index do quadrado
-            square.addEventListener("click", handleOnMoveClick); // adiciona o evento de clique
+            square.addEventListener("click", handleOnMoveClick); // adiciona o evento de clique esquerdo
+            square.addEventListener('contextmenu', handleRightClick); // adiciona o evento de clique direito
             row.appendChild(square); // adiciona a quadrado na linha
         }
         boardElement.appendChild(row); // adiciona a linha ao tabuleiro
@@ -484,6 +485,15 @@ function renderBoard() {
 
     // Atualização das peças no tabuleiro
     updatePiecesOnBoard();
+}
+
+// Evento de clique com o botão direito do mouse
+function handleRightClick(event) {
+    event.preventDefault(); // Previne a abertura do menu de contexto padrão do navegador
+    // Alterna a classe de pré-visualização
+    event.currentTarget.classList.toggle('preview');
+    // DEBUG
+    console.log(event.currentTarget.dataset.index);
 }
 
 function promotionPawn(fromPosition, toPosition, color) {
@@ -1238,14 +1248,15 @@ function getKingSafeMoves(from, color, bitboards) {
     // Adiciona o rei novamente na posição de origem
     tempBitboards[color][KING] |= 1n << BigInt(from);
     // Remove os movimentos que o rei não pode realizar
-    moves = kingMovesMask & ~attackerMask;
-    if (kingMovesMask & OPPONENT_PIECES) {
-        // itera para ver qual peça capturou e se é um movimento legal
+    moves = (kingMovesMask & ~attackerMask);
+    // Verifica se o rei pode capturar alguma peça adversária
+    if (moves & OPPONENT_PIECES) {
+        // Itera sobre as peças adversárias
         for (let p = 0; p < 6; p++) {
-            if (bitboards[OPPONENT_COLOR][p] & kingMovesMask) {
+            // Verifica se o movimento do rei coincide com a posição de alguma das peças adversárias
+            if (bitboards[OPPONENT_COLOR][p] & moves) {
                 for (let i = 0; i < 64; i++) {
-                    if (1n << BigInt(i) & kingMovesMask) {
-
+                    if (1n << BigInt(i) & moves) {
                         // Remove a peça do adversário
                         tempBitboards[OPPONENT_COLOR][p] &= ~(1n << BigInt(i));
                         // Remove o rei da posição de origem
@@ -1257,11 +1268,11 @@ function getKingSafeMoves(from, color, bitboards) {
                             // remove o movimento de captura
                             moves &= ~(1n << BigInt(i));
                         }
-                        // remove a peça do adversário
+                        // Adiciona a peça do adversário
                         tempBitboards[OPPONENT_COLOR][p] |= 1n << BigInt(i);
-                        // remove o rei da nova posição
+                        // Remove o rei da posição da verificação
                         tempBitboards[color][KING] &= ~(1n << BigInt(i));
-                        // Adiciona o rei na posição de origem
+                        // Adiciona o rei na posição em que estava
                         tempBitboards[color][KING] |= 1n << BigInt(from);
                     }
                 }
