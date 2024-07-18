@@ -1793,6 +1793,13 @@ function getSanMove(from, to, pieceType, isCapture, promotionPiece, isCheck, isC
     let check = isCheck ? "+" : "";
     const CHECKMATE = isCheckmate ? '#' : '';
     if (isCheckmate) check = '';
+    if (pieceType === KING && Math.abs(from - to) === 2) {
+        if (to % 8 === 1) {
+            return `O-O${check}${CHECKMATE}`;
+        } else if (to % 8 === 5) {
+            return `O-O-O${check}${CHECKMATE}`;
+        }
+    }
     return `${PIECE}${FROM_FILE}${FROM_RANK}${CAPTURE}${TO_FILE}${TO_RANK}${PROMOTION}${check}${CHECKMATE}`;
 }
 
