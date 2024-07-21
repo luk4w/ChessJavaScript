@@ -50,8 +50,8 @@ function getPawnMoves(from, color, bitboards, enPassant) {
     // Movimento de captura en passant
     if (enPassant !== null) {
         // Posicoes laterais
-        const LEFT = color === WHITE ? from + 1 : from - 1;
-        const RIGHT = color === WHITE ? from - 1 : from + 1;
+        const LEFT =  from + 1;
+        const RIGHT = from -1;
         // se a posição lateral a esquerda for igual a do peão marcado para captura en passant
         if (LEFT === enPassant) {
             bitboardMoves |= CAPTURE_LEFT;
