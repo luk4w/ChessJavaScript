@@ -1,5 +1,5 @@
-import { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING } from '../constants/pieces.js';
-import { WHITE, BLACK } from '../constants/colors.js';
+import { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING } from './constants/pieces.js';
+import { WHITE, BLACK } from './constants/colors.js';
 /** Obtem os movimentos do peão
  * @param {Integer} from
  * @param {Integer} color

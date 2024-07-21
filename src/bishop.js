@@ -1,6 +1,6 @@
-import { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING } from '../constants/pieces.js';
-import { WHITE, BLACK } from '../constants/colors.js';
-import { NOT_A_FILE, NOT_H_FILE, NOT_8_RANK, NOT_1_RANK } from '../constants/edges.js';
+import { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING } from './constants/pieces.js';
+import { WHITE, BLACK } from './constants/colors.js';
+import { NOT_A_FILE, NOT_H_FILE, NOT_8_RANK, NOT_1_RANK } from './constants/edges.js';
 /** 
  * @param {Integer} from
  * @param {Integer} color

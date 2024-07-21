@@ -23,12 +23,12 @@ import { CAPTURE_SOUND, CASTLING_SOUND, CHECK_SOUND, END_SOUND, FAILURE_SOUND, M
 import { NOT_1_RANK, NOT_8_RANK } from './constants/edges.js';
 
 // Importação das funções
-import { getPawnMoves, getPawnAttackerMask } from './moves/pawn.js';
-import { getRookMoves, getR, getL, getU, getD } from './moves/rook.js';
-import { getKnightMoves } from './moves/knight.js';
-import { getBishopMoves, getUR, getUL, getLL, getLR } from './moves/bishop.js';
-import { getQueenMoves } from './moves/queen.js';
-import { getKingMoves } from './moves/king.js';
+import { getPawnMoves, getPawnAttackerMask } from './pawn.js';
+import { getRookMoves, getR, getL, getU, getD } from './rook.js';
+import { getKnightMoves } from './knight.js';
+import { getBishopMoves, getUR, getUL, getLL, getLR } from './bishop.js';
+import { getQueenMoves } from './queen.js';
+import { getKingMoves } from './king.js';
 
 /**
     @Bitboard
