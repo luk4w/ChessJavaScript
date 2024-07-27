@@ -4,14 +4,6 @@
     @Date 2024-06-27
 */
 
-// Inicializa o Stockfish
-// var wasmSupported = typeof WebAssembly === 'object' && WebAssembly.validate(Uint8Array.of(0x0, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00));
-// var stockfish = new Worker(wasmSupported ? './engine/stockfish.wasm.js' : './engine/stockfish.js');
-// stockfish.addEventListener('message', function (e) {
-//     console.log(e.data);
-// });
-// stockfish.postMessage('uci');
-
 // Importação das constantes
 import { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, PIECES_STRING, PIECES_SAN } from './constants/pieces.js';
 import { WHITE, BLACK } from './constants/colors.js';
@@ -130,9 +122,11 @@ let gameState = {
         moves: []  // Lista de movimentos
     },
     invalidMove: "", // Registro do último movimento inválido
-    lastMoveMask: 0n, // Mascara do ultimo movimento realizado (fromPosition e toPosition)
+    lastMoveMask: 0n // Mascara do ultimo movimento realizado (fromPosition e toPosition)
 };
 let isImportPGN = false; // Verifica se o PGN foi importado
+let isEngineTurn = true; // Verifica se o Stockfish está jogando
+let playAgainstStockfish = true; // Jogar contra o Stockfish
 
 // Inicializa o tabuleiro de xadrez com as posições iniciais das peças.
 function initializeBoard(bitboards) {
@@ -156,86 +150,35 @@ function initializeBoard(bitboards) {
     bitboards[WHITE][KING] = 0x0000000000000008n;
 }
 
-/** 
-    @COMPORTAMENTO_DE_MEMORIA_PARA_O_MOVIMENTO_DA_PEÇA
+// Inicializa o Stockfish
+var wasmSupported = typeof WebAssembly === 'object' && WebAssembly.validate(Uint8Array.of(0x0, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00));
+var stockfish = new Worker(wasmSupported ? './stockfish/stockfish.wasm.js' : './stockfish/stockfish.js');
+stockfish.addEventListener('message', function (e) {
+    if (event.data.startsWith('bestmove')) {
+        isEngineTurn = true;
+        const bestMove = event.data.split(' ')[1];
+        setTimeout(() => {
+            // Executa o melhor movimento do Stockfish
+            executeStockfishMove(bestMove);
+            // Atualiza as variáveis para o próximo movimento
+            gameState.fromPosition = null;
+            gameState.selectedColor = null;
+            gameState.toPosition = null;
+            gameState.availableMoves = 0n;
+            // Atualiza o tabuleiro
+            renderBoard(gameState);
+        }, 500);
+        isEngineTurn = false;
+    }
+});
 
-    @REMOVER_PEÇA
-    @FROM 8 (h2)
+function executeStockfishMove(bestMove) {
+    gameState.selectedPiece = getPieceFromFEN(gameState.fen, bestMove);
+    gameState.selectedColor = gameState.turn;
+    testMove(bestMove, gameState);
+}
 
-         a b c d e f g h
-
-    8    0 0 0 0 0 0 0 0
-    7    0 0 0 0 0 0 0 0
-    6    0 0 0 0 0 0 0 0
-    5    0 0 0 0 0 0 0 0
-    4    0 0 0 0 0 0 0 0
-    3    0 0 0 0 0 0 0 0
-    2    0 0 0 0 0 0 0 1
-    1    0 0 0 0 0 0 0 0
-
-
-    @BITBOARD_WHITE_PAWN
-
-         a b c d e f g h
-
-    8    0 0 0 0 0 0 0 0
-    7    0 0 0 0 0 0 0 0
-    6    0 0 0 0 0 0 0 0
-    5    0 0 0 0 0 0 0 0
-    4    0 0 0 0 0 0 0 0
-    3    0 0 0 0 0 0 0 0
-    2    1 1 1 1 1 1 1 1
-    1    0 0 0 0 0 0 0 0
-
-    bitboards[0][0]:      00000000 00000000 00000000 00000000 00000000 00000000 11111111 00000000 
-    from:      8 (h2)
-
-    @DESLOCAMENTO_A_ESQUERDA (Conversão da posição "from" para uma mascara de bits)
-                          1n << BigInt(from):      00000000 00000000 00000000 00000000 00000000 00000000 00000001 00000000 
-    
-    @NOT
-                       ~(1n << BigInt(from)):      11111111 11111111 11111111 11111111 11111111 11111111 11111110 11111111
-
-    @AND
-    bitboards[0][0]:      00000000 00000000 00000000 00000000 00000000 00000000 11111111 00000000 
-    bitboards[0][0] &= ~(1n << BigInt(from)):      00000000 00000000 00000000 00000000 00000000 00000000 11111110 00000000 
-
-    @ADICIONAR_PEÇA
-    @TO 16 (h3)
-
-         a b c d e f g h
-
-    8    0 0 0 0 0 0 0 0
-    7    0 0 0 0 0 0 0 0
-    6    0 0 0 0 0 0 0 0
-    5    0 0 0 0 0 0 0 0
-    4    0 0 0 0 0 0 0 0
-    3    0 0 0 0 0 0 0 1
-    2    0 0 0 0 0 0 0 0
-    1    0 0 0 0 0 0 0 0
- 
-    @BITBOARD_PAWN_WHITE_POSICAO_8_REMOVIDA
- 
-         a b c d e f g h
- 
-    8    0 0 0 0 0 0 0 0
-    7    0 0 0 0 0 0 0 0
-    6    0 0 0 0 0 0 0 0
-    5    0 0 0 0 0 0 0 0
-    4    0 0 0 0 0 0 0 0
-    3    0 0 0 0 0 0 0 0
-    2    1 1 1 1 1 1 1 0
-    1    0 0 0 0 0 0 0 0
-
-    @DESLOCAMENTO_A_ESQUERDA (Conversão da posição "to" para uma mascara de bits)
-                         1n << BigInt(to):         00000000 00000000 00000000 00000000 00000000 00000001 00000000 00000000
- 
-    @OR
-                          bitboards[0][0]:         00000000 00000000 00000000 00000000 00000000 00000000 11111110 00000000
-    bitboards[0][0] |= (1n << BigInt(to)):         00000000 00000000 10000000 00000000 00000000 00000001 11111110 00000000
-    
-*/
-
+// Move a peça
 function movePiece(gameState) {
     // Cor da peça adversária
     const OPPONENT_COLOR = gameState.selectedColor === WHITE ? BLACK : WHITE;
@@ -248,7 +191,7 @@ function movePiece(gameState) {
     let isPlayedSound = false;
     // Verificar se houve captura de peça
     let isCapture = false;
-
+    // Verifica se o movimento é válido
     if (gameState.availableMoves & TO_MASK) {
         // Incrementa os meios movimentos
         gameState.halfMoves++;
@@ -256,45 +199,15 @@ function movePiece(gameState) {
         gameState.bitboards[gameState.selectedColor][gameState.selectedPiece] &= ~(1n << BigInt(gameState.fromPosition));
         // Adiciona a nova posição da peça
         gameState.bitboards[gameState.selectedColor][gameState.selectedPiece] |= TO_MASK;
-        // Verifica se houve captura de peça
-        if (TO_MASK & OPPONENT_PIECES) {
-            // Iteração nas bitboards adversárias, para saber qual peça foi capturada
-            for (let opponentPiece = 0; opponentPiece < 6; opponentPiece++) {
-                if (gameState.bitboards[OPPONENT_COLOR][opponentPiece] & TO_MASK) {
-                    // Remove a peça adversária
-                    gameState.bitboards[OPPONENT_COLOR][opponentPiece] &= ~TO_MASK;
-                    // Verifica se a peça capturada foi uma torre
-                    if (opponentPiece === ROOK && gameState.availableCastlingMask !== 0n) {
-                        switch (TO_MASK) {
-                            case WHITE_ROOK_QUEENSIDE:
-                                gameState.availableCastlingMask &= ~WHITE_ROOK_QUEENSIDE; // Remove Q
-                                break;
-                            case WHITE_ROOK_KINGSIDE:
-                                gameState.availableCastlingMask &= ~WHITE_ROOK_KINGSIDE; // Remove K
-                                break;
-                            case BLACK_ROOK_QUEENSIDE:
-                                gameState.availableCastlingMask &= ~BLACK_ROOK_QUEENSIDE; // Remove q
-                                break;
-                            case BLACK_ROOK_KINGSIDE:
-                                gameState.availableCastlingMask &= ~BLACK_ROOK_KINGSIDE; // Remove k
-                                break;
-                        }
-                    }
-                }
-            }
-            isPlayedSound = true;
-            isCapture = true;
-            gameState.enPassant = null;
-            gameState.halfMoves = 0;
-        }
 
+        // Peças específicas
         switch (gameState.selectedPiece) {
             case PAWN:
                 // Verifica se o peão chegou ao final do tabuleiro
                 if (TO_MASK & RANK_8 || TO_MASK & RANK_1) {
                     // Informa que está ocorrendo uma promoção de peão
                     gameState.isPromotion = true;
-                    promotionPawn(gameState.fromPosition, gameState.toPosition, gameState.selectedColor, gameState.bitboards);
+                    promotionPawn(gameState);
                     return;
                 }
                 // Obtem os peões adversários
@@ -369,6 +282,38 @@ function movePiece(gameState) {
                 }
                 break;
         }
+
+        // Verifica se houve captura de peça
+        if (TO_MASK & OPPONENT_PIECES) {
+            // Iteração nas bitboards adversárias, para saber qual peça foi capturada
+            for (let opponentPiece = 0; opponentPiece < 6; opponentPiece++) {
+                if (gameState.bitboards[OPPONENT_COLOR][opponentPiece] & TO_MASK) {
+                    // Remove a peça adversária
+                    gameState.bitboards[OPPONENT_COLOR][opponentPiece] &= ~TO_MASK;
+                    // Verifica se a peça capturada foi uma torre
+                    if (opponentPiece === ROOK && gameState.availableCastlingMask !== 0n) {
+                        switch (TO_MASK) {
+                            case WHITE_ROOK_QUEENSIDE:
+                                gameState.availableCastlingMask &= ~WHITE_ROOK_QUEENSIDE; // Remove Q
+                                break;
+                            case WHITE_ROOK_KINGSIDE:
+                                gameState.availableCastlingMask &= ~WHITE_ROOK_KINGSIDE; // Remove K
+                                break;
+                            case BLACK_ROOK_QUEENSIDE:
+                                gameState.availableCastlingMask &= ~BLACK_ROOK_QUEENSIDE; // Remove q
+                                break;
+                            case BLACK_ROOK_KINGSIDE:
+                                gameState.availableCastlingMask &= ~BLACK_ROOK_KINGSIDE; // Remove k
+                                break;
+                        }
+                    }
+                }
+            }
+            isPlayedSound = true;
+            isCapture = true;
+            gameState.enPassant = null;
+            gameState.halfMoves = 0;
+        }
         // Verifica se o rei adversário está em xeque
         let opponentKingCheck = isKingInCheck(gameState.bitboards, OPPONENT_COLOR);
         if (opponentKingCheck) {
@@ -414,7 +359,18 @@ function movePiece(gameState) {
             gameState.metadata.moves.push(getSanMove(gameState.fromPosition, gameState.toPosition, gameState.selectedPiece, isCapture, null, isCheck, gameState.isMate));
             // Atualiza o PGN no layout
             updatePGN(gameState);
+
+            if (isEngineTurn && playAgainstStockfish) {
+                // Mostrar o tabuleiro no console
+                stockfish.postMessage('position fen ' + gameState.fen);
+                // Solicitar o melhor movimento com profundidade 2
+                stockfish.postMessage('go depth 12');
+            } else if (!isEngineTurn && playAgainstStockfish) {
+                isEngineTurn = true;
+            }
         }
+        // Verificar se houve empate por repetições ....
+
         // Atualizar o ultimo movimento
         gameState.lastMoveMask = 1n << BigInt(gameState.fromPosition) | 1n << BigInt(gameState.toPosition);
     } else {
@@ -516,95 +472,113 @@ function promotionPawn(gameState) {
         square.classList.add("dimmed");
         square.removeEventListener("click", handleOnMoveClick);
         // Adiciona o evento de clique a todos os quadrados
-        square.addEventListener("click", handlePromotionClick);
+        square.addEventListener("click", (event) => handlePromotionClick(event, gameState));
     }
 
     // Determina as posições das peças que aparecerão para a promoção (em relação ao bitboard)
-    const promotionPositions = gameState.selectedColor === WHITE ? [gameState.toPosition, gameState.toPosition - 8, gameState.toPosition - 16, gameState.toPosition - 24]
-        : [gameState.toPosition, gameState.toPosition + 8, gameState.toPosition + 16, gameState.toPosition + 24];
+    const promotionPositions = gameState.selectedColor === WHITE ?
+        [gameState.toPosition, gameState.toPosition - 8, gameState.toPosition - 16, gameState.toPosition - 24] :
+        [gameState.toPosition, gameState.toPosition + 8, gameState.toPosition + 16, gameState.toPosition + 24];
 
     // Evento de clique para a promoção
-    function handlePromotionClick(event) {
-        // Obtem a mascara da posição de destino
-        const TO_MASK = 1n << BigInt(gameState.toPosition);
+    function handlePromotionClick(event, game) {
+        // Obtem a mascara da posição de destino e origem
+        const TO_MASK = 1n << BigInt(game.toPosition);
+        const FROM_MASK = 1n << BigInt(game.fromPosition);
+
         // Obtém a peça selecionada para a promoção
         const index = parseInt(event.currentTarget.dataset.index);
+        // Verificar se houve captura de peça
+        let isCapture = false;
+        let opponentPiece = null;
         // Verifica se a peça selecionada está entre as posições de promoção
         if (promotionPositions.includes(index)) {
-            // Verificar se houve captura de peça
-            let isCapture = false;
             // Obtém a peça de promoção
             let promotionPiece = getPromotionPiece(index);
-            // Efeito sonoro de promoção
-            MOVE_SOUND.play();
             // Remove o peão
-            gameState.bitboards[gameState.selectedColor][PAWN] &= ~TO_MASK;
+            game.bitboards[game.selectedColor][PAWN] &= ~TO_MASK;
             // Adiciona a peça promovida
-            gameState.bitboards[gameState.selectedColor][promotionPiece] |= TO_MASK;
+            game.bitboards[game.selectedColor][promotionPiece] |= TO_MASK;
             // Cor da peça adversária
-            const OPPONENT_COLOR = gameState.selectedColor === WHITE ? BLACK : WHITE;
+            const OPPONENT_COLOR = game.selectedColor === WHITE ? BLACK : WHITE;
             // Bitboards das peças adversárias
-            const OPPONENT_PIECES = gameState.bitboards[OPPONENT_COLOR][PAWN] | gameState.bitboards[OPPONENT_COLOR][KNIGHT] | gameState.bitboards[OPPONENT_COLOR][BISHOP]
-                | gameState.bitboards[OPPONENT_COLOR][ROOK] | gameState.bitboards[OPPONENT_COLOR][QUEEN] | gameState.bitboards[OPPONENT_COLOR][KING];
+            const OPPONENT_PIECES = game.bitboards[OPPONENT_COLOR][PAWN] | game.bitboards[OPPONENT_COLOR][KNIGHT] | game.bitboards[OPPONENT_COLOR][BISHOP]
+                | game.bitboards[OPPONENT_COLOR][ROOK] | game.bitboards[OPPONENT_COLOR][QUEEN] | game.bitboards[OPPONENT_COLOR][KING];
             // Verifica se houve captura de peça
             if (TO_MASK & OPPONENT_PIECES) {
                 isCapture = true;
+                // remove a peça adversária
+                for (let op = 0; op < 6; op++) {
+                    if (game.bitboards[OPPONENT_COLOR][op] & TO_MASK) {
+                        // Marca a peça adversária capturada
+                        opponentPiece = op;
+                        // Remove a peça adversária
+                        game.bitboards[OPPONENT_COLOR][op] &= ~TO_MASK;
+                    }
+                }
             }
             // Verifica se o rei adversário está em xeque
-            let opponentKingCheck = isKingInCheck(gameState.bitboards, OPPONENT_COLOR);
+            let opponentKingCheck = isKingInCheck(game.bitboards, OPPONENT_COLOR);
             if (opponentKingCheck) {
-                gameState.kingCheckMask = opponentKingCheck; // Marca o rei adversário
+                game.kingCheckMask = opponentKingCheck; // Marca o rei adversário
                 // verifica se o rei adversário está em xeque mate
-                if (getDefenderMovesMask(gameState, OPPONENT_COLOR) === 0n) {
-                    gameState.isMate = true;
-                    showCheckmate(gameState);
+                if (getDefenderMovesMask(game, OPPONENT_COLOR) === 0n) {
+                    game.isMate = true;
+                    showCheckmate(game);
                 }
                 else {
                     // Efeito sonoro de xeque
-                    CHECK_SOUND.play();
+                    playSound(CHECK_SOUND);
                 }
             }
             // Verifica o empate por afogameStatento
-            else if (getMovesMask(OPPONENT_COLOR, gameState.bitboards, gameState.enPassant) === 0n) {
-                showDraw(gameState);
+            else if (getMovesMask(OPPONENT_COLOR, game.bitboards, game.enPassant) === 0n) {
+                showDraw(game);
             }
             else {
                 // Desmarca o rei em xeque
-                gameState.kingCheckMask = 0n;
+                game.kingCheckMask = 0n;
             }
             if (isCapture) {
                 // Efeito sonoro de captura
-                CAPTURE_SOUND.play();
+                playSound(CAPTURE_SOUND);
             }
             else {
-                MOVE_SOUND.play();
+                playSound(MOVE_SOUND);
             }
             // Contagem das jogadas completas
-            if (gameState.turn === BLACK) {
-                gameState.fullMoves++;
+            if (game.turn === BLACK) {
+                game.fullMoves++;
             }
             // Atualiza o turno
-            gameState.turn = gameState.turn === WHITE ? BLACK : WHITE;
+            game.turn = game.turn === WHITE ? BLACK : WHITE;
             // Atualiza a FEN no layout
-            updateFEN(gameState);
+            updateFEN(game);
             // Registra o movimento em notação algébrica
-            const isCheck = gameState.kingCheckMask !== 0n;
-            gameState.metadata.moves.push(getSanMove(gameState.fromPosition, gameState.toPosition, gameState.selectedPiece, isCapture, gameState.promotionPiece, isCheck, gameState.isMate));
+            const isCheck = game.kingCheckMask !== 0n;
+            game.metadata.moves.push(getSanMove(game.fromPosition, game.toPosition, game.selectedPiece, isCapture, promotionPiece, isCheck, gameState.isMate));
             // Atualiza o PGN no layout
-            updatePGN(gameState);
-            // Atualiza o tabuleiro com a peça promovida
-            renderBoard();
-            gameState.isPromotion = false;
+            updatePGN(game);
         }
         else {
             // Restaura o peão
-            gameState.bitboards[gameState.selectedColor][PAWN] |= 1n << BigInt(gameState.fromPosition);
+            game.bitboards[game.selectedColor][PAWN] |= FROM_MASK;
             // Remove o peão da nova posição
-            gameState.bitboards[gameState.selectedColor][PAWN] &= ~TO_MASK;
-            // Atualiza o tabuleiro com a peça promovida
-            renderBoard();
-            gameState.isPromotion = false;
+            game.bitboards[game.selectedColor][PAWN] &= ~TO_MASK;
+            if (isCapture) {
+                // Restaura a peça capturada
+                game.bitboards[OPPONENT_COLOR][opponentPiece] |= TO_MASK;
+            }
         }
+
+        gameState.lastMoveMask = FROM_MASK | TO_MASK;
+        gameState.fromPosition = null;
+        gameState.selectedColor = null;
+        gameState.toPosition = null;
+        gameState.availableMoves = 0n;
+        // Atualiza o tabuleiro com a peça promovida
+        renderBoard(game);
+        game.isPromotion = false;
     }
 
     // Adiciona as peças de promoção e destaca os quadrados
@@ -640,7 +614,7 @@ function showCheckmate(gameState) {
         // Oculta a mensagem de xeque mate
         document.getElementById("end").style.display = "none";
         // Reinicia o jogo
-        restart();
+        restart(gameState);
     });
 
 
@@ -800,11 +774,13 @@ function onMove(gameState, position) {
                 FAILURE_SOUND.play();
             }
         }
-        // Atualiza as variáveis para o próximo movimento
-        gameState.fromPosition = null;
-        gameState.selectedColor = null;
-        gameState.toPosition = null;
-        gameState.availableMoves = 0n;
+        // Atualiza as variáveis para o próximo movimento, se não estiver ocorrendo uma promoção de peão
+        if (!gameState.isPromotion) {
+            gameState.fromPosition = null;
+            gameState.selectedColor = null;
+            gameState.toPosition = null;
+            gameState.availableMoves = 0n;
+        }
     }
     // Se não estiver ocorrendo uma promoção de peão
     if (!gameState.isPromotion) {
@@ -1001,19 +977,21 @@ function isPinnedMask(fromPosition, bitboards) {
     const KING_MASK = tempBitboards[color][KING];
     // Cor da peça adversária
     const OPPONENT_COLOR = color === WHITE ? BLACK : WHITE;
-    // remove a peça da posição de origem
+    // remove a peça aliada da posição de origem
     tempBitboards[color][piece] &= ~(1n << BigInt(fromPosition));
     // Mascara de bits do ataque (posição da peça e quadrados atacados)
     let attackerMask = 0n;
+    // Contador de peças atacantes
+    let count = 0;
     // Mascara de bits dos movimentos inimigos
     const ENEMY_MOVES = getMovesMask(OPPONENT_COLOR, tempBitboards, null);
     // verifica se o bitboard do rei coincide com algum bit de todos os movimentos de ataque das peças inimigas
     if (KING_MASK & ENEMY_MOVES) {
-        // Verifica a posição de quem realiza o ataque descoberto
+        // Obtem o attackMask
         for (let p = 0; p < 6; p++) {
             // Obtem o bitboard da peça
             let bitboard = tempBitboards[OPPONENT_COLOR][p];
-            // Obtem a posição da peça atacante
+            // Percorre as posições do bitboard
             for (let i = 0; i < 64; i++) {
                 // Verifica se existe uma peça na posição i
                 if (bitboard & (1n << BigInt(i))) {
@@ -1023,6 +1001,7 @@ function isPinnedMask(fromPosition, bitboards) {
                             // Verifica se a peça pode atacar o rei
                             if (getRookMoves(i, OPPONENT_COLOR, tempBitboards) & KING_MASK) {
                                 attackerMask |= 1n << BigInt(i);
+                                count++;
                                 // Obtem a direção do ataque
                                 // Ataca o rei na direita
                                 let rightMoves = getR(i, OPPONENT_COLOR, tempBitboards);
@@ -1054,6 +1033,7 @@ function isPinnedMask(fromPosition, bitboards) {
                             // Verifica se a peça pode atacar o rei
                             if (getBishopMoves(i, OPPONENT_COLOR, tempBitboards) & KING_MASK) {
                                 attackerMask |= 1n << BigInt(i);
+                                count++;
                                 // Obtem a direção do ataque
                                 // Ataca o rei na diagonal superior direita
                                 let upperRightMoves = getUR(i, OPPONENT_COLOR, tempBitboards);
@@ -1085,6 +1065,7 @@ function isPinnedMask(fromPosition, bitboards) {
                             // Verifica se a peça pode atacar o rei
                             if (getQueenMoves(i, OPPONENT_COLOR, tempBitboards) & KING_MASK) {
                                 attackerMask |= 1n << BigInt(i);
+                                count++;
                                 // Obtem a direção do ataque
                                 // Ataca o rei na direita
                                 let rightMoves = getR(i, OPPONENT_COLOR, tempBitboards);
@@ -1136,18 +1117,26 @@ function isPinnedMask(fromPosition, bitboards) {
                                 }
                             }
                             break;
-                        default:
+                        case PAWN:
+                        case KNIGHT:
+                        case KING:
+                            // Não realizam ataques descobertos
                             break;
+                        default:
+                            throw new Error("Invalid piece!");
                     }
                 }
             }
         }
-        // Verifica se a peça cravada pode capturar quem ta atacando o rei ou entrar na linha de ataque
+        // Verifica se o rei recebe mais de um ataque quando a peça selecionada é removida
+        if (count > 1) {
+            return 0n;
+        }
+        // Movimentos que a peça pode realizar: capturar ou entrar na linha de ataque
         let defenderMoves = 0n;
         switch (piece) {
             case PAWN:
-                // defenderMoves = getPawnMoves(gameState.fromPosition, color, tempBitboards, null);
-                defenderMoves = getPawnMoves(fromPosition, color, tempBitboards, gameState.enPassant);
+                defenderMoves = getPawnMoves(fromPosition, color, tempBitboards, null);
                 break;
             case ROOK:
                 defenderMoves = getRookMoves(fromPosition, color, tempBitboards);
@@ -1346,7 +1335,6 @@ function getAttackerMask(color, bitboards) {
  * @returns mascara de bits dos movimentos possíveis de defesa
  */
 function getDefenderMovesMask(game, color) {
-
     // Copia o estado atual das peças
     let tempBitboards = [
         game.bitboards[WHITE].map(bitboard => BigInt(bitboard)), // Copia o array de peças brancas
@@ -1492,18 +1480,20 @@ function getDefenderMovesMask(game, color) {
                         }
                         break;
                     case PAWN:
-                        if (getPawnAttackerMask(i, OPPONENT_COLOR) & KING_MASK) {
+                        const PAWN_ATTACKER_MASK = getPawnAttackerMask(i, OPPONENT_COLOR);
+                        if (PAWN_ATTACKER_MASK & KING_MASK) {
                             attackersCount++;
                             attackerPositionMask |= 1n << BigInt(i);
-                            attackerMask |= (getPawnAttackerMask(i, OPPONENT_COLOR));
+                            attackerMask |= (PAWN_ATTACKER_MASK & KING_MASK);
                         }
                         break;
                     case KNIGHT:
                         // Verifica se o cavalo ataca o rei
-                        if (getKnightMoves(i, OPPONENT_COLOR, tempBitboards) & KING_MASK) {
+                        const KNIGHT_ATTACKER_MASK = getKnightMoves(i, OPPONENT_COLOR, tempBitboards);
+                        if (KNIGHT_ATTACKER_MASK & KING_MASK) {
                             attackersCount++;
                             attackerPositionMask |= 1n << BigInt(i);
-                            attackerMask |= (getKnightMoves(i, OPPONENT_COLOR, tempBitboards));
+                            attackerMask |= (KNIGHT_ATTACKER_MASK & KING_MASK);
                         }
                         break;
                     default:
@@ -1512,155 +1502,101 @@ function getDefenderMovesMask(game, color) {
             }
         }
     }
-
     // Posicao do rei
-    let kingPosition = 0;
+    let kingIndexPosition = 0;
     // Obtem a posição do rei
     for (let i = 0; i < 64; i++) {
         if (KING_MASK & (1n << BigInt(i))) {
-            kingPosition = i;
+            kingIndexPosition = i;
             break;
         }
     }
     // Mascara de bits dos movimentos de defesa
     let defenderMask = 0n;
     // Obtem os movimentos possíveis do rei
-    let kingMovesMask = getKingSafeMoves(kingPosition, color, tempBitboards);
-
+    let kingMovesMask = getKingSafeMoves(kingIndexPosition, color, tempBitboards);
     // adiciona os movimentos do rei na mascara de defesa
     defenderMask |= kingMovesMask;
-
     // Peça que está atacando o rei
     let opponentPiece = null;
-
     // Se for atacado por mais de uma peça, somente o movimento de rei é possível	
     if (attackersCount > 1) {
-        // console.log("attackerCOunt > 1  === " + attackersCount);
         return kingMovesMask;
     }
 
     // Verificar se alguma peça aliada pode capturar ou entrar na frente de quem está atacando o rei
     for (let p = 0; p < 6; p++) {
-        // Obtem o bitboard da peça
+        // Bitboard da peça
         let bitboard = tempBitboards[color][p];
-        // Obter a posição das peças defensoras
+        // Percorre as posições do bitboard
         for (let i = 0; i < 64; i++) {
             // Verifica se existe uma peça na posição i
             if (bitboard & (1n << BigInt(i))) {
-                // Escolhe o tipo da peça
-                switch (p) {
-                    case PAWN:
-                        let pawnMoves = getPawnMoves(i, color, tempBitboards, game.enPassant);
-                        if (pawnMoves & (attackerMask | attackerPositionMask)) {
-                            // Remove temporariamente a peça que está atacando o rei
-                            for (let op = 0; op < 6; op++) {
-                                if (tempBitboards[OPPONENT_COLOR][op] & attackerPositionMask) {
-                                    tempBitboards[OPPONENT_COLOR][op] &= ~attackerPositionMask;
-                                    opponentPiece = op;
-                                    break;
-                                }
-                            }
-                            // Verifica se o peão está cravado após a remoção da peça atacante
-                            let pinned = isPinnedMask(i, tempBitboards);
-                            // Se não estiver cravada por outro ataque
-                            if (!pinned) {
-                                // Adiciona o movimento possível para defender o rei
-                                defenderMask |= (pawnMoves & (attackerMask | attackerPositionMask));
-                            }
-                            // Restaura a peça que foi removida
-                            tempBitboards[OPPONENT_COLOR][opponentPiece] |= attackerPositionMask;
-                        }
+                // raio-x na peça adversária
+                let isXrayOpponentPiece = false;
+                // Remove temporariamente a peça que está atacando o rei
+                for (let op = 0; op < 6; op++) {
+                    if (tempBitboards[OPPONENT_COLOR][op] & attackerPositionMask) {
+                        tempBitboards[OPPONENT_COLOR][op] &= ~attackerPositionMask;
+                        opponentPiece = op;
                         break;
-                    case ROOK:
-                        let rookMoves = getRookMoves(i, color, tempBitboards);
-                        if (rookMoves & (attackerMask | attackerPositionMask)) {
-                            // Remove temporariamente a peça que está atacando o rei
-                            for (let op = 0; op < 6; op++) {
-                                if (tempBitboards[OPPONENT_COLOR][op] & attackerPositionMask) {
-                                    tempBitboards[OPPONENT_COLOR][op] &= ~attackerPositionMask;
-                                    opponentPiece = op;
-                                    break;
-                                }
+                    }
+                }
+                // Verifica se existe uma peça que realiza raio-x quando a peça do adversario é removida
+                if (isKingInCheck(tempBitboards, color)) {
+                    // Coloca temporariamente um peão aliado na posição da peça adversária removida
+                    tempBitboards[color][PAWN] |= attackerPositionMask;
+                    // Indica essa alteração
+                    isXrayOpponentPiece = true;
+                }
+                // Remove temporariamente a peça defensora
+                tempBitboards[color][p] &= ~(1n << BigInt(i));
+                // Verifica se o rei fica em xeque após a remoção da peça defensora
+                let pinnedAnotherPiece = isKingInCheck(tempBitboards, color);
+                // Remove o peão adicionado temporariamente (se adicionado)
+                if (isXrayOpponentPiece) tempBitboards[color][PAWN] &= ~attackerPositionMask;
+                // Restaura as peças que foram removidas
+                tempBitboards[color][p] |= 1n << BigInt(i);
+                tempBitboards[OPPONENT_COLOR][opponentPiece] |= attackerPositionMask;
+                // Se não estiver cravada por outro ataque
+                if (!pinnedAnotherPiece) {
+                    // Escolhe o tipo da peça
+                    switch (p) {
+                        case PAWN:
+                            let pawnMoves = getPawnMoves(i, color, tempBitboards, game.enPassant);
+                            // Verifica se o peão pode se mover para a posição do ataque
+                            if (pawnMoves & attackerMask) {
+                                defenderMask |= (pawnMoves & attackerMask);
                             }
-                            // Verifica se o peão está cravado após a remoção da peça atacante
-                            let pinned = isPinnedMask(i, tempBitboards);
-                            // Se não estiver cravada por outro ataque
-                            if (!pinned) {
-                                // Adiciona o movimento possível para defender o rei
-                                defenderMask |= (rookMoves & (attackerMask | attackerPositionMask));
+                            // Verifica se o peão pode capturar a peça que está atacando o rei
+                            let pawnAttackerMask = getPawnAttackerMask(i, color);
+                            if (pawnAttackerMask & attackerPositionMask) {
+                                defenderMask |= (pawnAttackerMask & attackerPositionMask);
                             }
-                            // Restaura a peça que foi removida
-                            tempBitboards[OPPONENT_COLOR][opponentPiece] |= attackerPositionMask;
-                        }
-                        break;
-                    case KNIGHT:
-                        let knightMoves = getKnightMoves(i, color, tempBitboards);
-                        if (knightMoves & (attackerMask | attackerPositionMask)) {
-                            // Remove temporariamente a peça que está atacando o rei
-                            for (let op = 0; op < 6; op++) {
-                                if (tempBitboards[OPPONENT_COLOR][op] & attackerPositionMask) {
-                                    tempBitboards[OPPONENT_COLOR][op] &= ~attackerPositionMask;
-                                    opponentPiece = op;
-                                    break;
-                                }
-                            }
-                            // Verifica se o peão está cravado após a remoção da peça atacante
-                            let pinned = isPinnedMask(i, tempBitboards);
-                            // Se não estiver cravada por outro ataque
-                            if (!pinned) {
-                                // Adiciona o movimento possível para defender o rei
-                                defenderMask |= (knightMoves & (attackerMask | attackerPositionMask));
-                            }
-                            // Restaura a peça que foi removida
-                            tempBitboards[OPPONENT_COLOR][opponentPiece] |= attackerPositionMask;
-                        }
-                        break;
-                    case BISHOP:
-                        let bishopMoves = getBishopMoves(i, color, tempBitboards);
-                        if (bishopMoves & (attackerMask | attackerPositionMask)) {
-                            // Remove temporariamente a peça que está atacando o rei
-                            for (let op = 0; op < 6; op++) {
-                                if (tempBitboards[OPPONENT_COLOR][op] & attackerPositionMask) {
-                                    tempBitboards[OPPONENT_COLOR][op] &= ~attackerPositionMask;
-                                    opponentPiece = op;
-                                    break;
-                                }
-                            }
-                            // Verifica se o peão está cravado após a remoção da peça atacante
-                            let pinned = isPinnedMask(i, tempBitboards);
-                            // Se não estiver cravada por outro ataque
-                            if (!pinned) {
-                                // Adiciona o movimento possível para defender o rei
-                                defenderMask |= (bishopMoves & (attackerMask | attackerPositionMask));
-                            }
-                            // Restaura a peça que foi removida
-                            tempBitboards[OPPONENT_COLOR][opponentPiece] |= attackerPositionMask;
-                        }
-                        break;
-                    case QUEEN:
-                        let queenMoves = getQueenMoves(i, color, tempBitboards);
-                        if (queenMoves & (attackerMask | attackerPositionMask)) {
-                            // Remove temporariamente a peça que está atacando o rei
-                            for (let op = 0; op < 6; op++) {
-                                if (tempBitboards[OPPONENT_COLOR][op] & attackerPositionMask) {
-                                    tempBitboards[OPPONENT_COLOR][op] &= ~attackerPositionMask;
-                                    opponentPiece = op;
-                                    break;
-                                }
-                            }
-                            // Verifica se o peão está cravado após a remoção da peça atacante
-                            let pinned = isPinnedMask(i, tempBitboards);
-                            // Se não estiver cravada por outro ataque
-                            if (!pinned) {
-                                // Adiciona o movimento possível para defender o rei
-                                defenderMask |= (queenMoves & (attackerMask | attackerPositionMask));
-                            }
-                            // Restaura a peça que foi removida
-                            tempBitboards[OPPONENT_COLOR][opponentPiece] |= attackerPositionMask;
-                        }
-                        break;
-                    default:
-                        break;
+                            break;
+                        case ROOK:
+                            let rookMoves = getRookMoves(i, color, tempBitboards);
+                            defenderMask |= (rookMoves & (attackerMask | attackerPositionMask));
+                            break;
+                        case KNIGHT:
+                            let knightMoves = getKnightMoves(i, color, tempBitboards);
+                            defenderMask |= (knightMoves & (attackerMask | attackerPositionMask));
+                            break;
+                        case BISHOP:
+                            let bishopMoves = getBishopMoves(i, color, tempBitboards);
+                            defenderMask |= (bishopMoves & (attackerMask | attackerPositionMask));
+                            break;
+                        case QUEEN:
+                            let queenMoves = getQueenMoves(i, color, tempBitboards);
+                            defenderMask |= (queenMoves & (attackerMask | attackerPositionMask));
+                            break;
+                        case KING:
+                            // O rei não pode defender ele mesmo
+                            break;
+                        default:
+                            throw new Error(`${p} Invalid piece!`);
+
+                    }
                 }
 
                 // console.log("Defender Mask:" + i);
@@ -1810,6 +1746,7 @@ function updatePGN(gameState) {
 
 function initialize(game) {
     // Reseta as variáveis da partida
+    game.lastMoveMask = 0n;
     game.availableMoves = 0n;
     game.selectedPiece = null;
     game.selectedColor = null;
@@ -1890,8 +1827,18 @@ function testMove(sanMove, game) {
     let toFile = null;
     let toRank = null;
 
+    // Roque curto ou longo
+    if (formattedMove === "O-O" || formattedMove === "O-O-O") {
+        if (game.turn === WHITE) {
+            game.fromPosition = 3;
+            game.toPosition = formattedMove === "O-O" ? 1 : 5;
+        } else {
+            game.fromPosition = 59;
+            game.toPosition = formattedMove === "O-O" ? 57 : 61;
+        }
+    }
     // Movimento completo e2e4
-    if (formattedMove.length === 4) {
+    else if (formattedMove.length === 4) {
         fromFile = formattedMove.charAt(0);
         fromRank = formattedMove.charAt(1);
         toFile = formattedMove.charAt(2);
@@ -1926,7 +1873,8 @@ function testMove(sanMove, game) {
             }
         }
     }
-    if (game.fromPosition === null || game.toPosition === null || game.selectedPiece === null || game.selectedColor === null) {
+    if (game.fromPosition === null || game.toPosition === null || game.fromPosition < 0 || game.toPosition < 0
+        || game.fromPosition === undefined || game.toPosition === undefined) {
         game.invalidMove = sanMove;
     } else {
         getAvailableMoves(game);
@@ -2065,6 +2013,66 @@ function importPGN(pgn) {
     updateFEN(gameState);
     updatePGN(gameState);
 }
+
+// Função para converter coordenadas de tabuleiro para posicoes
+function boardCoordToIndex(move) {
+    const file = move.charCodeAt(0) - 'a'.charCodeAt(0);
+    const rank = 8 - parseInt(move[1], 10);
+    return rank * 8 + file;
+}
+
+// Função para obter a peça em uma posição FEN dada uma coordenada
+function getPieceFromFEN(fen, move) {
+    const [position] = fen.split(' ');
+    const rows = position.split('/');
+    const index = boardCoordToIndex(move);
+    let piece = null;
+
+    let currentIndex = 0;
+    for (const row of rows) {
+        for (const char of row) {
+            if (/\d/.test(char)) {
+                currentIndex += parseInt(char, 10);
+            } else {
+                if (currentIndex === index) {
+                    switch (char) {
+                        case 'p':
+                        case 'P':
+                            piece = PAWN;
+                            break;
+                        case 'n':
+                        case 'N':
+                            piece = KNIGHT;
+                            break;
+                        case 'b':
+                        case 'B':
+                            piece = BISHOP;
+                            break;
+                        case 'r':
+                        case 'R':
+                            piece = ROOK;
+                            break;
+                        case 'q':
+                        case 'Q':
+                            piece = QUEEN;
+                            break;
+                        case 'k':
+                        case 'K':
+                            piece = KING;
+                            break;
+                        default:
+                            throw new Error('Invalid Piece');
+                    }
+                    break;
+                }
+                currentIndex++;
+            }
+        }
+        if (piece !== null) break;
+    }
+    return piece;
+}
+
 // Inicializa o jogo
 initialize(gameState);
 // Renderiza o tabuleiro
