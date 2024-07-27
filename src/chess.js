@@ -12,7 +12,7 @@ import {
     WHITE_KINGSIDE_CASTLING_EMPTY, WHITE_QUEENSIDE_CASTLING_EMPTY, BLACK_KINGSIDE_CASTLING_EMPTY, BLACK_QUEENSIDE_CASTLING_EMPTY
 } from './constants/castling.js';
 import { CAPTURE_SOUND, CASTLING_SOUND, CHECK_SOUND, END_SOUND, FAILURE_SOUND, MOVE_SOUND } from './constants/sounds.js';
-import { RANK_1, RANK_8 } from './constants/edges.js';
+import { RANK_1, RANK_8, FILES_MASK, RANKS_MASK } from './constants/masks.js';
 
 // Importação das funções
 import { getPawnMoves, getPawnAttackerMask } from './pawn.js';
@@ -1837,8 +1837,9 @@ function testMove(sanMove, game) {
             game.toPosition = formattedMove === "O-O" ? 57 : 61;
         }
     }
-    // Movimento completo e2e4
+    // Movimentos completos
     else if (formattedMove.length === 4) {
+        // e2e4 f7f5 d2d4
         fromFile = formattedMove.charAt(0);
         fromRank = formattedMove.charAt(1);
         toFile = formattedMove.charAt(2);
@@ -1846,20 +1847,14 @@ function testMove(sanMove, game) {
         game.fromPosition = FILES.indexOf(fromFile) + RANKS.indexOf(fromRank) * 8;
         game.toPosition = FILES.indexOf(toFile) + RANKS.indexOf(toRank) * 8;
     }
-    else if (formattedMove.length === 2 || formattedMove.length === 3) {
-        // Movimento simplificado ex: e4
-        if (formattedMove.length === 2) {
-            toFile = formattedMove.charAt(0);
-            toRank = formattedMove.charAt(1);
-        }
-        // Movimento de captura simplificado ex: exf4
-        else if (formattedMove.length === 3) {
-            toFile = formattedMove.charAt(1);
-            toRank = formattedMove.charAt(2);
-        }
-        // Obter a posição final
+    // Movimentos simplificados
+    else if (formattedMove.length === 2) {
+        // e4 f1 d8
+        toFile = formattedMove.charAt(0);
+        toRank = formattedMove.charAt(1);
+        // Posição de destino
         game.toPosition = FILES.indexOf(toFile) + RANKS.indexOf(toRank) * 8;
-        // Obter o fromPosition dos bitboards
+        // Obter a posição de origem da peça
         let bitboard = game.bitboards[game.turn][game.selectedPiece];
         // percorrer o bitboard da peça selecionada
         for (let i = 0; i < 64; i++) {
@@ -1872,6 +1867,32 @@ function testMove(sanMove, game) {
                 }
             }
         }
+    }
+    // Simplificados com designação de coluna ou linha
+    else if (formattedMove.length === 3) {
+        // ef4 bd7 1e2 fe8
+        toFile = formattedMove.charAt(1);
+        toRank = formattedMove.charAt(2);
+        // Obter a linha ou coluna da peça
+        let fromRank = null;
+        let fromFile = null;
+        if (/[1-8]/.test(formattedMove.charAt(0))) fromRank = formattedMove.charAt(0);
+        else if (/[a-h]/.test(formattedMove.charAt(0))) fromFile = formattedMove.charAt(0);
+        // Bitboard da peça selecionada
+        let bitboard = game.bitboards[game.turn][game.selectedPiece];
+        // Percorrer apenas a coluna ou linha do bitboard da peça selecionada
+        for (let i = 0; i < 64; i++) {
+            if (bitboard & (1n << BigInt(i))) {
+                if (fromRank && RANKS[Math.floor(i / 8)] === fromRank) {
+                    game.fromPosition = i;
+                    break;
+                } else if (fromFile && FILES[i % 8] === fromFile) {
+                    game.fromPosition = i;
+                    break;
+                }
+            }
+        }
+        game.toPosition = FILES.indexOf(toFile) + RANKS.indexOf(toRank) * 8;
     }
     if (game.fromPosition === null || game.toPosition === null || game.fromPosition < 0 || game.toPosition < 0
         || game.fromPosition === undefined || game.toPosition === undefined) {
@@ -1952,6 +1973,7 @@ function importPGN(pgn) {
         if (!move.match(/^([a-h][1-8])?[a-h][1-8](=[NBRQK])?[+#]?$/i) && // Peões
             !move.match(/^[a-h][1-8]?(x[a-h][1-8])(=[NBRQK])?[+#]?$/i) && // Captura com peão
             !move.match(/^[NBRQK]([a-h][1-8])?x?[a-h][1-8][+#]?$/i) && // Peças maiores com capturas
+            !move.match(/^[NBRQK][a-h]?[1-8]?x?[a-h][1-8][+#]?$/i) && // Peças maiores movimento simplificado
             !move.match(/^O-O(-O)?$/)) { // Roques
             // Exibir mensagem de erro
             showImportPGNError(move, tempGame);

@@ -1,6 +1,6 @@
 import { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING } from './constants/pieces.js';
 import { WHITE, BLACK } from './constants/colors.js';
-import { A_FILE, H_FILE, RANK_8, RANK_1 } from './constants/edges.js';
+import { A_FILE, H_FILE, RANK_8, RANK_1 } from './constants/masks.js';
 /** 
  * @param {Integer} from
  * @param {Integer} color
