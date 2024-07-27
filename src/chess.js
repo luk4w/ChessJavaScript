@@ -130,6 +130,7 @@ let gameState = {
         moves: []  // Lista de movimentos
     },
     invalidMove: "", // Registro do último movimento inválido
+    lastMoveMask: 0n, // Mascara do ultimo movimento realizado (fromPosition e toPosition)
 };
 let isImportPGN = false; // Verifica se o PGN foi importado
 
@@ -414,6 +415,8 @@ function movePiece(gameState) {
             // Atualiza o PGN no layout
             updatePGN(gameState);
         }
+        // Atualizar o ultimo movimento
+        gameState.lastMoveMask = 1n << BigInt(gameState.fromPosition) | 1n << BigInt(gameState.toPosition);
     } else {
         // Efeito sonoro de movimento inválido
         playSound(FAILURE_SOUND);
@@ -466,7 +469,7 @@ function renderBoard(gameState) {
                 // Adiciona a classe de acordo com a cor do quadrado
                 square.className = (rank + file) % 2 === 0 ? "white" : "black"; // alternância de cores
             }
-            if (gameState.fromPosition === index) {
+            if (gameState.fromPosition === index || gameState.lastMoveMask & (1n << BigInt(index))) {
                 square.classList.add("selected");
             }
             // Adiciona a decoração dos movimentos possíveis
@@ -1799,8 +1802,8 @@ function updatePGN(gameState) {
     let pgn = generatePGN(gameState);
     const TEXTAREA = document.getElementById("pgn");
     // Obter apenas a sequência de movimentos
-    // TEXTAREA.value = pgn.replace(/\[.*?\]/g, '').trim();
-    TEXTAREA.value = pgn;
+    TEXTAREA.value = pgn.replace(/\[.*?\]/g, '').trim();
+    // TEXTAREA.value = pgn;
     TEXTAREA.scrollTop = TEXTAREA.scrollHeight; // Rolar para o final do textarea
     hideImportPGNError();
 }
