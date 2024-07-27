@@ -1,6 +1,6 @@
 import { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING } from './constants/pieces.js';
 import { WHITE, BLACK } from './constants/colors.js';
-import { NOT_A_FILE, NOT_H_FILE, NOT_8_RANK, NOT_1_RANK } from './constants/edges.js';
+import { A_FILE, H_FILE, RANK_8, RANK_1 } from './constants/edges.js';
 /** 
  * @param {Integer} from
  * @param {Integer} color
@@ -75,7 +75,7 @@ function getL(from, color, bitboards) {
     let movement;
     // Movimentos para a esquerda
     movement = 1n << BigInt(from);
-    while (movement & NOT_A_FILE) {
+    while (movement & ~A_FILE) {
         movement <<= 1n; // deslocamento para esquerda
         if (movement & OWN_PIECES) break; // se tiver uma peça aliada, para o movimento
         left |= movement; // adiciona o movimento ao bitboard
@@ -102,7 +102,7 @@ function getR(from, color, bitboards) {
     let movement;
     // Movimentos para a direita
     movement = 1n << BigInt(from);
-    while (movement & NOT_H_FILE) {
+    while (movement & ~H_FILE) {
         movement >>= 1n; // deslocamento para direita
         if (movement & OWN_PIECES) break;
         right |= movement;
@@ -129,7 +129,7 @@ function getU(from, color, bitboards) {
     let movement;
     // Movimentos para cima
     movement = 1n << BigInt(from);
-    while (movement & NOT_8_RANK) {
+    while (movement & ~RANK_8) {
         movement <<= 8n; // deslocamento para esquerda
         if (movement & OWN_PIECES) break;
         up |= movement;
@@ -156,7 +156,7 @@ function getD(from, color, bitboards) {
     let movement;
     // Movimentos para baixo
     movement = 1n << BigInt(from);
-    while (movement & NOT_1_RANK) {
+    while (movement & ~RANK_1) {
         movement >>= 8n; // deslocamento para direita
         if (movement & OWN_PIECES) break;
         down |= movement;

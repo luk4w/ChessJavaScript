@@ -42,7 +42,6 @@ body {
 }
 
 .import-pgn-section {
-    visibility: hidden;
     max-width: 750px;
     display: flex;
     justify-content: flex-end;
@@ -51,6 +50,7 @@ body {
 }
 
 #import-pgn-button {
+    visibility: collapse;
     align-self: flex-end;
     padding: 5px 25px;
     font-size: 14px;
@@ -65,6 +65,13 @@ body {
 
 #import-pgn-button:hover {
     background-color: darkgreen;
+}
+
+#import-error{
+    visibility: hidden;
+    width: 80%;
+    color: red;
+    font-size: 14px;
 }
 
 textarea {
@@ -147,7 +154,7 @@ input {
 }
 
 .black {
-    background-color: green;
+    background-color: #508050;
 }
 
 .selected::before {

@@ -1,6 +1,6 @@
 import { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING } from './constants/pieces.js';
 import { WHITE, BLACK } from './constants/colors.js';
-import { NOT_A_FILE, NOT_H_FILE, NOT_8_RANK, NOT_1_RANK } from './constants/edges.js';
+import { A_FILE, H_FILE, RANK_8, RANK_1 } from './constants/edges.js';
 /** 
  * @param {Integer} from
  * @param {Integer} color
@@ -29,7 +29,7 @@ function getUR(from, color, bitboards) {
     const OPPONENT_PIECES = color === WHITE ? BLACK_PIECES : WHITE_PIECES;
     // Movimentos para a diagonal superior direita do bitboard
     let movement = 1n << BigInt(from);
-    while (movement & (NOT_H_FILE & NOT_8_RANK)) {
+    while (movement & (~H_FILE & ~RANK_8)) {
         movement <<= 7n; // deslocamento para diagonal superior direita 
         if (movement & OWN_PIECES) break;
         ur |= movement;
@@ -55,7 +55,7 @@ function getUL(from, color, bitboards) {
     const OPPONENT_PIECES = color === WHITE ? BLACK_PIECES : WHITE_PIECES;
     // Movimentos para a diagonal superior esquerda do bitboard
     let movement = 1n << BigInt(from);
-    while (movement & (NOT_A_FILE & NOT_8_RANK)) {
+    while (movement & (~A_FILE & ~RANK_8)) {
         movement <<= 9n; // deslocamento para diagonal superior esquerda
         if (movement & OWN_PIECES) break;
         ul |= movement; // adiciona o movimento ao bitboard
@@ -81,7 +81,7 @@ function getLL(from, color, bitboards) {
     const OWN_PIECES = color === WHITE ? WHITE_PIECES : BLACK_PIECES;
     const OPPONENT_PIECES = color === WHITE ? BLACK_PIECES : WHITE_PIECES;
     let movement = 1n << BigInt(from);
-    while (movement & (NOT_A_FILE & NOT_1_RANK)) {
+    while (movement & (~A_FILE & ~RANK_1)) {
         movement >>= 7n; // deslocamento para diagonal inferior esquerda
         if (movement & OWN_PIECES) break;
         ll |= movement;
@@ -107,7 +107,7 @@ function getLR(from, color, bitboards) {
     const OPPONENT_PIECES = color === WHITE ? BLACK_PIECES : WHITE_PIECES;
     // Movimentos para a diagonal inferior direita do bitboard
     let movement = 1n << BigInt(from);
-    while (movement & (NOT_H_FILE & NOT_1_RANK)) {
+    while (movement & (~H_FILE & ~RANK_1)) {
         movement >>= 9n; // deslocamento para diagonal inferior direita
         if (movement & OWN_PIECES) break;
         lr |= movement;

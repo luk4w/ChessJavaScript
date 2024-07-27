@@ -20,7 +20,7 @@ import {
     WHITE_KINGSIDE_CASTLING_EMPTY, WHITE_QUEENSIDE_CASTLING_EMPTY, BLACK_KINGSIDE_CASTLING_EMPTY, BLACK_QUEENSIDE_CASTLING_EMPTY
 } from './constants/castling.js';
 import { CAPTURE_SOUND, CASTLING_SOUND, CHECK_SOUND, END_SOUND, FAILURE_SOUND, MOVE_SOUND } from './constants/sounds.js';
-import { NOT_1_RANK, NOT_8_RANK } from './constants/edges.js';
+import { RANK_1, RANK_8 } from './constants/edges.js';
 
 // Importação das funções
 import { getPawnMoves, getPawnAttackerMask } from './pawn.js';
@@ -98,9 +98,8 @@ import { getKingMoves } from './king.js';
     0 0 0 0 0 0 0 0
 
 */
-
 // Estado do jogo
-const gameState = {
+let gameState = {
     // Tabuleiro da partida
     bitboards: [
         new Array(6).fill(0n), // 6 tipos de peças brancas
@@ -130,8 +129,9 @@ const gameState = {
         result: "", // Resultado
         moves: []  // Lista de movimentos
     },
-    lastInvalidMove: "" // Registro do último movimento inválido
+    invalidMove: "", // Registro do último movimento inválido
 };
+let isImportPGN = false; // Verifica se o PGN foi importado
 
 // Inicializa o tabuleiro de xadrez com as posições iniciais das peças.
 function initializeBoard(bitboards) {
@@ -290,7 +290,7 @@ function movePiece(gameState) {
         switch (gameState.selectedPiece) {
             case PAWN:
                 // Verifica se o peão chegou ao final do tabuleiro
-                if (TO_MASK & ~NOT_8_RANK || TO_MASK & ~NOT_1_RANK) {
+                if (TO_MASK & RANK_8 || TO_MASK & RANK_1) {
                     // Informa que está ocorrendo uma promoção de peão
                     gameState.isPromotion = true;
                     promotionPawn(gameState.fromPosition, gameState.toPosition, gameState.selectedColor, gameState.bitboards);
@@ -328,7 +328,7 @@ function movePiece(gameState) {
                 // verifica se o movimento foi um roque
                 if (Math.abs(gameState.fromPosition - gameState.toPosition) === 2) {
                     // Efeito sonoro de roque
-                    CASTLING_SOUND.play();
+                    playSound(CASTLING_SOUND);
                     isPlayedSound = true;
                     // Adicionar torre na posição do roque curto
                     if (gameState.toPosition === gameState.fromPosition - 2) {
@@ -379,7 +379,7 @@ function movePiece(gameState) {
             }
             else {
                 // Efeito sonoro de xeque
-                CHECK_SOUND.play();
+                playSound(CHECK_SOUND);
                 isPlayedSound = true;
             }
         }
@@ -393,11 +393,11 @@ function movePiece(gameState) {
         }
         if (isCapture) {
             // Efeito sonoro de captura
-            CAPTURE_SOUND.play();
+            playSound(CAPTURE_SOUND);
         }
         else if (!isPlayedSound) {
             // Efeito sonoro de movimento
-            MOVE_SOUND.play();
+            playSound(MOVE_SOUND);
         }
         // Contagem das jogadas completas
         if (gameState.turn === BLACK) {
@@ -405,18 +405,25 @@ function movePiece(gameState) {
         }
         // Atualiza o turno
         gameState.turn = gameState.turn === WHITE ? BLACK : WHITE;
-        // Atualiza a FEN no layout
-        updateFEN(gameState);
-        // Registra o movimento em notação algébrica
-        const isCheck = gameState.kingCheckMask !== 0n;
-        gameState.metadata.moves.push(getSanMove(gameState.fromPosition, gameState.toPosition, gameState.selectedPiece, isCapture, null, isCheck, gameState.isMate));
-        // Atualiza o PGN no layout
-        updatePGN();
-
+        if (!isImportPGN) {
+            // Atualiza a FEN no layout
+            updateFEN(gameState);
+            // Registra o movimento em notação algébrica
+            const isCheck = gameState.kingCheckMask !== 0n;
+            gameState.metadata.moves.push(getSanMove(gameState.fromPosition, gameState.toPosition, gameState.selectedPiece, isCapture, null, isCheck, gameState.isMate));
+            // Atualiza o PGN no layout
+            updatePGN(gameState);
+        }
     } else {
         // Efeito sonoro de movimento inválido
-        FAILURE_SOUND.play();
-        gameState.lastInvalidMove = getSanMove(gameState.fromPosition, gameState.toPosition, gameState.selectedPiece, false, null, false, false);
+        playSound(FAILURE_SOUND);
+        gameState.invalidMove = getSanMove(gameState.fromPosition, gameState.toPosition, gameState.selectedPiece, false, null, false, false);
+    }
+}
+
+function playSound(file) {
+    if (!isImportPGN) {
+        file.play();
     }
 }
 
@@ -581,7 +588,7 @@ function promotionPawn(gameState) {
             const isCheck = gameState.kingCheckMask !== 0n;
             gameState.metadata.moves.push(getSanMove(gameState.fromPosition, gameState.toPosition, gameState.selectedPiece, isCapture, gameState.promotionPiece, isCheck, gameState.isMate));
             // Atualiza o PGN no layout
-            updatePGN();
+            updatePGN(gameState);
             // Atualiza o tabuleiro com a peça promovida
             renderBoard();
             gameState.isPromotion = false;
@@ -711,6 +718,38 @@ function addPieceToBoard(index, piece, color) {
     square.appendChild(pieceDiv); // Adiciona a peça no quadrado
 }
 
+function getAvailableMoves(game) {
+    // Obtem os movimentos possíveis da peça
+    let moves = getPieceMovesMask(game.fromPosition, game.selectedPiece, game.selectedColor, game.bitboards, game.enPassant);
+    // Verifica se o rei está em xeque
+    if (isKingInCheck(game.bitboards, game.selectedColor)) {
+        // movimentos possiveis para se defender do xeque
+        let allDefenderMoves = getDefenderMovesMask(game, game.selectedColor);
+        // Verifica se a peça pode se mover para defender o rei
+        if (moves & allDefenderMoves !== 0n) {
+            game.availableMoves = moves;
+        }
+        return;
+    }
+    // Verifica se a peça está cravada
+    const isPinned = isPinnedMask(game.fromPosition, game.bitboards);
+    // Verifica se a peça está cravada e pode se mover
+    if (isPinned !== null && isPinned && game.selectedPiece !== KING) {
+        game.availableMoves = isPinned;
+        return;
+    }
+    // Verifica se a peça está cravada e não pode se mover
+    else if (isPinned !== null && !isPinned && game.selectedPiece !== KING) {
+        gameState.availableMoves = 0n;
+        return;
+    }
+    game.availableMoves = moves;
+    // Verifica se a mascara de roque está disponível
+    if (game.availableCastlingMask !== 0n && game.selectedPiece === KING) {
+        game.availableMoves |= getCastlingMovesMask(game.selectedColor, game);
+    }
+}
+
 // Função para selecionar e mover a peça
 function onMove(gameState, position) {
     // Verifica se a peça ainda não foi selecionada
@@ -728,33 +767,8 @@ function onMove(gameState, position) {
                     gameState.fromPosition = position;
                     // Redefine a máscara de movimentos disponíveis
                     gameState.availableMoves = 0n;
-
-                    // Verifica se o rei está em xeque
-                    if (isKingInCheck(gameState.bitboards, gameState.selectedColor)) {
-                        // movimentos possiveis para se defender do xeque
-                        let allDefenderMoves = getDefenderMovesMask(gameState, gameState.selectedColor);
-                        // Verifica se a peça pode se mover para defender o rei
-                        let moves = getPieceMovesMask(gameState.fromPosition, gameState.selectedPiece, gameState.selectedColor, gameState.bitboards, gameState.enPassant) & allDefenderMoves;
-                        if (moves !== 0n) {
-                            gameState.availableMoves = moves;
-                        }
-                        break;
-                    }
-                    // Verifica se a peça está cravada e pode se mover
-                    else if (isPinnedMask(gameState.fromPosition, gameState.bitboards) != null && isPinnedMask(gameState.fromPosition, gameState.bitboards) && gameState.selectedPiece !== KING) {
-                        gameState.availableMoves = isPinnedMask(gameState.fromPosition, gameState.bitboards);
-                        break;
-                    }
-                    // Verifica se a peça está cravada e não pode se mover
-                    else if (isPinnedMask(gameState.fromPosition, gameState.bitboards) != null && !(isPinnedMask(gameState.fromPosition, gameState.bitboards)) && gameState.selectedPiece !== KING) {
-                        gameState.availableMoves = 0n;
-                        break;
-                    }
-                    gameState.availableMoves = getPieceMovesMask(gameState.fromPosition, gameState.selectedPiece, gameState.selectedColor, gameState.bitboards, gameState.enPassant);
-                    // Verifica se a mascara de roque está disponível
-                    if (gameState.availableCastlingMask !== 0n && gameState.selectedPiece === KING) {
-                        gameState.availableMoves |= getCastlingMovesMask(gameState.selectedColor, gameState);
-                    }
+                    // Obtem os movimentos disponíveis
+                    getAvailableMoves(gameState);
                 }
             }
         }
@@ -1730,10 +1744,11 @@ function getCastlingMovesMask(color, gameState) {
     return castlingMoves;
 }
 
-function restart() {
-    initialize();
-    updateFEN(gameState);
-    updatePGN();
+function restart(game) {
+    initialize(game);
+    renderBoard(game);
+    updateFEN(game);
+    updatePGN(game);
 }
 
 // Portable gameState Notation
@@ -1780,29 +1795,32 @@ function getSanMove(from, to, pieceType, isCapture, promotionPiece, isCheck, isC
     return `${PIECE}${FROM_FILE}${FROM_RANK}${CAPTURE}${TO_FILE}${TO_RANK}${PROMOTION}${check}${CHECKMATE}`;
 }
 
-function updatePGN() {
+function updatePGN(gameState) {
     let pgn = generatePGN(gameState);
     const TEXTAREA = document.getElementById("pgn");
+    // Obter apenas a sequência de movimentos
+    // TEXTAREA.value = pgn.replace(/\[.*?\]/g, '').trim();
     TEXTAREA.value = pgn;
-    TEXTAREA.scrollTop = TEXTAREA.scrollHeight; // Rola para o final do textarea
+    TEXTAREA.scrollTop = TEXTAREA.scrollHeight; // Rolar para o final do textarea
+    hideImportPGNError();
 }
 
-function initialize() {
+function initialize(game) {
     // Reseta as variáveis da partida
-    gameState.availableMoves = 0n;
-    gameState.selectedPiece = null;
-    gameState.selectedColor = null;
-    gameState.fromPosition = null;
-    gameState.toPosition = null;
-    gameState.enPassant = null;
-    gameState.turn = WHITE;
-    gameState.fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    gameState.halfMoves = 0;
-    gameState.fullMoves = 1;
-    gameState.kingCheckMask = 0n;
-    gameState.availableCastlingMask = WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE | BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE;
+    game.availableMoves = 0n;
+    game.selectedPiece = null;
+    game.selectedColor = null;
+    game.fromPosition = null;
+    game.toPosition = null;
+    game.enPassant = null;
+    game.turn = WHITE;
+    game.fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    game.halfMoves = 0;
+    game.fullMoves = 1;
+    game.kingCheckMask = 0n;
+    game.availableCastlingMask = WHITE_ROOK_KINGSIDE | WHITE_ROOK_QUEENSIDE | BLACK_ROOK_KINGSIDE | BLACK_ROOK_QUEENSIDE;
     // Metadados
-    gameState.metadata = {
+    game.metadata = {
         event: "",
         site: "Chess Java Script",
         date: new Date().toLocaleDateString().replace(/\//g, "-"),
@@ -1814,10 +1832,237 @@ function initialize() {
         fen: ""
     };
     // Insere os dados dos bitboards
-    initializeBoard(gameState.bitboards);
-    // Renderiza o tabuleiro
-    renderBoard(gameState);
+    initializeBoard(game.bitboards);
 }
 
+document.addEventListener('DOMContentLoaded', () => {
+    const TEXAREA = document.getElementById('pgn');
+    const BUTTON = document.getElementById('import-pgn-button');
+    TEXAREA.addEventListener('focus', () => {
+        BUTTON.style.visibility = "visible";
+    });
+    TEXAREA.addEventListener('input', () => {
+        hideImportPGNError();
+    });
+
+    TEXAREA.addEventListener('blur', () => {
+        setTimeout(() => {
+            BUTTON.style.visibility = "hidden";
+        }, 200);
+    });
+    BUTTON.addEventListener('click', () => {
+        importPGN(TEXAREA.value);
+    });
+});
+
+function showImportPGNError(move, game) {
+    const IMPORT_ERROR = document.getElementById("import-error");
+    if (move === null) {
+        IMPORT_ERROR.textContent = "PGN is empty";
+    } else {
+        const count = game.metadata.moves.indexOf(move);
+        if (game.turn === WHITE) { // WHITE
+            IMPORT_ERROR.textContent = `Invalid move: ${Math.floor(count / 2) + 1}. ${move}`;
+        } else { // BLACK
+            IMPORT_ERROR.textContent = `Invalid move: ${Math.floor(count / 2) + 1}. ... ${move}`;
+        }
+    }
+    IMPORT_ERROR.style.visibility = "visible";
+    isImportPGN = false;
+}
+
+function hideImportPGNError() {
+    const IMPORT_ERROR = document.getElementById("import-error");
+    IMPORT_ERROR.textContent = "";
+    IMPORT_ERROR.style.visibility = "hidden";
+}
+
+function testMove(sanMove, game) {
+    // Remover caracteres de captura, promoção, xeque, xeque-mate e siglas para as peças
+    const formattedMove = sanMove.replace(/[NBRQKx+#=]/g, ""); // exf4=ef4; e3xf4=e3f4; e4
+    const FILES = "hgfedcba";
+    const RANKS = "12345678";
+    let fromFile = null;
+    let fromRank = null;
+    let toFile = null;
+    let toRank = null;
+
+    // Movimento completo e2e4
+    if (formattedMove.length === 4) {
+        fromFile = formattedMove.charAt(0);
+        fromRank = formattedMove.charAt(1);
+        toFile = formattedMove.charAt(2);
+        toRank = formattedMove.charAt(3);
+        game.fromPosition = FILES.indexOf(fromFile) + RANKS.indexOf(fromRank) * 8;
+        game.toPosition = FILES.indexOf(toFile) + RANKS.indexOf(toRank) * 8;
+    }
+    else if (formattedMove.length === 2 || formattedMove.length === 3) {
+        // Movimento simplificado ex: e4
+        if (formattedMove.length === 2) {
+            toFile = formattedMove.charAt(0);
+            toRank = formattedMove.charAt(1);
+        }
+        // Movimento de captura simplificado ex: exf4
+        else if (formattedMove.length === 3) {
+            toFile = formattedMove.charAt(1);
+            toRank = formattedMove.charAt(2);
+        }
+        // Obter a posição final
+        game.toPosition = FILES.indexOf(toFile) + RANKS.indexOf(toRank) * 8;
+        // Obter o fromPosition dos bitboards
+        let bitboard = game.bitboards[game.turn][game.selectedPiece];
+        // percorrer o bitboard da peça selecionada
+        for (let i = 0; i < 64; i++) {
+            if (bitboard & (1n << BigInt(i))) {
+                // Obter os movimentos possíveis da peça
+                let moveMask = getPieceMovesMask(i, game.selectedPiece, game.turn, game.bitboards, game.enPassant);
+                if (moveMask & 1n << BigInt(game.toPosition)) {
+                    game.fromPosition = i;
+                    break;
+                }
+            }
+        }
+    }
+    if (game.fromPosition === null || game.toPosition === null || game.selectedPiece === null || game.selectedColor === null) {
+        game.invalidMove = sanMove;
+    } else {
+        getAvailableMoves(game);
+        movePiece(game);
+    }
+}
+
+function importPGN(pgn) {
+    isImportPGN = true;
+    // Função para limpar e obter o valor dos metadados
+    function getMetadataValue(metadata) {
+        const match = metadata.match(/"(.*)"/);
+        return match ? match[1] : "";
+    }
+    // Iniciar o jogo temporário para importar o PGN
+    let tempGame = {
+        bitboards: [
+            new Array(6).fill(0n),
+            new Array(6).fill(0n)
+        ],
+        availableMoves: 0n,
+        selectedPiece: null,
+        selectedColor: null,
+        fromPosition: null,
+        toPosition: null,
+        enPassant: null,
+        turn: WHITE,
+        fen: "",
+        halfMoves: 0,
+        fullMoves: 1,
+        kingCheckMask: 0n,
+        availableCastlingMask: 0n,
+        isPromotion: false,
+        isMate: false,
+        metadata: {
+            event: "",
+            site: "",
+            date: "",
+            round: "",
+            white: "",
+            black: "",
+            result: "",
+            moves: []
+        },
+        invalidMove: ""
+    };
+    initialize(tempGame);
+    // Obter a sequência de movimentos
+    let pgnMoves = pgn.replace(/\[.*?\]/g, '').replace(/\d+\./g, '').replace(/\s+/g, ' ').trim().split(' ');
+    // Verifica se está vazio ou se os movimentos são iguais aos movimentos atuais
+    if (pgnMoves.length === 0 || (pgnMoves.length === 1 && pgnMoves[0] === "")) {
+        showImportPGNError(null, null);
+        return;
+    }
+    // Inserir a lista de movimentos no jogo temporário
+    tempGame.metadata.moves = pgnMoves;
+    // Obter os metadados
+    let metadata = pgn.match(/\[.*?\]/g);
+    if (metadata) {
+        metadata.forEach(data => {
+            let value = getMetadataValue(data);
+            if (data.includes("[Event ")) tempGame.metadata.event = value;
+            else if (data.includes("[Site ")) tempGame.metadata.site = value;
+            else if (data.includes("[Date ")) tempGame.metadata.date = value;
+            else if (data.includes("[Round ")) tempGame.metadata.round = value;
+            else if (data.includes("[White ")) tempGame.metadata.white = value;
+            else if (data.includes("[Black ")) tempGame.metadata.black = value;
+            else if (data.includes("[Result ")) tempGame.metadata.result = value;
+        });
+    }
+    let count = 0;
+    // Percorrer todos os movimentos
+    for (let move of pgnMoves) {
+        // Verificar se o movimento está formatado corretamente
+        if (!move.match(/^([a-h][1-8])?[a-h][1-8](=[NBRQK])?[+#]?$/i) && // Peões
+            !move.match(/^[a-h][1-8]?(x[a-h][1-8])(=[NBRQK])?[+#]?$/i) && // Captura com peão
+            !move.match(/^[NBRQK]([a-h][1-8])?x?[a-h][1-8][+#]?$/i) && // Peças maiores com capturas
+            !move.match(/^O-O(-O)?$/)) { // Roques
+            // Exibir mensagem de erro
+            showImportPGNError(move, tempGame);
+            return;
+        } else {
+            // Ocultar a mensagem de erro
+            hideImportPGNError();
+        }
+        // Obter a primeira letra do movimento
+        const firstChar = move.charAt(0);
+        // Selecionar o turno
+        tempGame.selectedColor = tempGame.turn;
+        // Verificar qual peça está se movendo
+        if (firstChar === firstChar.toLowerCase()) {
+            // exf4 e3xf4 (não pode capturar na mesma coluna)
+            if (move.includes('x') && (move.charAt(0) === move.charAt(2) || move.charAt(0) === move.charAt(2))) {
+                showImportPGNError(move, tempGame);
+                return;
+            }
+            tempGame.selectedPiece = PAWN;
+
+        } else {
+            // Selecionar a peça
+            switch (firstChar) {
+                case PIECES_SAN[KNIGHT]:
+                    tempGame.selectedPiece = KNIGHT;
+                    break;
+                case PIECES_SAN[BISHOP]:
+                    tempGame.selectedPiece = BISHOP;
+                    break;
+                case PIECES_SAN[ROOK]:
+                    tempGame.selectedPiece = ROOK;
+                    break;
+                case PIECES_SAN[QUEEN]:
+                    tempGame.selectedPiece = QUEEN;
+                    break;
+                case PIECES_SAN[KING]:
+                case "O":
+                    tempGame.selectedPiece = KING;
+                    break;
+                default:
+                    showImportPGNError(move, tempGame);
+                    return;
+            }
+        }
+        testMove(move, tempGame);
+        if (tempGame.invalidMove) {
+            showImportPGNError(move, tempGame);
+            return;
+        }
+        count++;
+    }
+    // Atualizar o estado do jogo
+    tempGame.availableMoves = 0n;
+    tempGame.fromPosition = null;
+    gameState = tempGame;
+    renderBoard(gameState);
+    isImportPGN = false;
+    updateFEN(gameState);
+    updatePGN(gameState);
+}
 // Inicializa o jogo
-initialize();
+initialize(gameState);
+// Renderiza o tabuleiro
+renderBoard(gameState);
