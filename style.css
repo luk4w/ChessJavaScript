@@ -205,6 +205,11 @@ input {
     border-radius: 25px;
 }
 
+.capture::before{
+    background-color: transparent;
+    z-index: 1;
+}
+
 .dimmed {
     opacity: 0.25;
 }
