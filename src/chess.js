@@ -729,8 +729,8 @@ function getAvailableMoves(game) {
         // movimentos possiveis para se defender do xeque
         let allDefenderMoves = getDefenderMovesMask(game, game.selectedColor);
         // Verifica se a peça pode se mover para defender o rei
-        if (moves & allDefenderMoves !== 0n) {
-            game.availableMoves = moves;
+        if ((moves & allDefenderMoves) !== 0n) {
+            game.availableMoves = (moves & allDefenderMoves);
         }
         return;
     }
