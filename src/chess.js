@@ -1974,13 +1974,22 @@ function importPGN(pgn) {
             !move.match(/^[a-h][1-8]?(x[a-h][1-8])(=[NBRQK])?[+#]?$/i) && // Captura com peão
             !move.match(/^[NBRQK]([a-h][1-8])?x?[a-h][1-8][+#]?$/i) && // Peças maiores com capturas
             !move.match(/^[NBRQK][a-h]?[1-8]?x?[a-h][1-8][+#]?$/i) && // Peças maiores movimento simplificado
-            !move.match(/^O-O(-O)?$/)) { // Roques
+            !move.match(/^O-O(-O)?$/) && // Roques
+            !move.match(/^1-0$/) && // Brancas vencem
+            !move.match(/^0-1$/) && // Pretas vencem
+            !move.match(/^1\/2-1\/2$/)) // Empate
+        {
             // Exibir mensagem de erro
             showImportPGNError(move, tempGame);
             return;
         } else {
             // Ocultar a mensagem de erro
             hideImportPGNError();
+        }
+        // Resultado da partida
+        if (move === "1-0" || move === "0-1" || move === "1/2-1/2") {
+            tempGame.metadata.result = move;
+            continue;
         }
         // Obter a primeira letra do movimento
         const firstChar = move.charAt(0);
