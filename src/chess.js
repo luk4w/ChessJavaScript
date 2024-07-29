@@ -110,6 +110,7 @@ let gameState = {
     kingCheckMask: 0n, // Máscara do rei em xeque
     availableCastlingMask: 0n, // Máscara para os roques disponíveis
     isPromotion: false, // Verifica se está ocorrendo uma promoção de peão
+    promotionPiece: null, // Peça promovida
     isMate: false, // Verificar se houve xeque mate
     metadata: { // Metadados do jogo
         event: "", // Evento
@@ -124,9 +125,9 @@ let gameState = {
     invalidMove: "", // Registro do último movimento inválido
     lastMoveMask: 0n // Mascara do ultimo movimento realizado (fromPosition e toPosition)
 };
-let isImportPGN = false; // Verifica se o PGN foi importado
+let isImportingGame = false; // Verifica se o PGN foi importado
 let isEngineTurn = true; // Verifica se o Stockfish está jogando
-let playAgainstStockfish = true; // Jogar contra o Stockfish
+let playAgainstStockfish = false; // Jogar contra o Stockfish
 
 // Inicializa o tabuleiro de xadrez com as posições iniciais das peças.
 function initializeBoard(bitboards) {
@@ -154,9 +155,9 @@ function initializeBoard(bitboards) {
 var wasmSupported = typeof WebAssembly === 'object' && WebAssembly.validate(Uint8Array.of(0x0, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00));
 var stockfish = new Worker(wasmSupported ? './stockfish/stockfish.wasm.js' : './stockfish/stockfish.js');
 stockfish.addEventListener('message', function (e) {
-    if (event.data.startsWith('bestmove')) {
+    if (e.data.startsWith('bestmove')) {
         isEngineTurn = true;
-        const bestMove = event.data.split(' ')[1];
+        const bestMove = e.data.split(' ')[1];
         setTimeout(() => {
             // Executa o melhor movimento do Stockfish
             executeStockfishMove(bestMove);
@@ -175,6 +176,25 @@ stockfish.addEventListener('message', function (e) {
 function executeStockfishMove(bestMove) {
     gameState.selectedPiece = getPieceFromFEN(gameState.fen, bestMove);
     gameState.selectedColor = gameState.turn;
+
+    // Caso uma promoção
+    if (bestMove.length === 5) {
+        switch (bestMove.charAt(4)) {
+            case 'q':
+                gameState.promotionPiece = QUEEN;
+                break;
+            case 'r':
+                gameState.promotionPiece = ROOK;
+                break;
+            case 'b':
+                gameState.promotionPiece = BISHOP;
+                break;
+            case 'n':
+                gameState.promotionPiece = KNIGHT;
+                break;
+        }
+    }
+
     testMove(bestMove, gameState);
 }
 
@@ -351,7 +371,7 @@ function movePiece(gameState) {
         }
         // Atualiza o turno
         gameState.turn = gameState.turn === WHITE ? BLACK : WHITE;
-        if (!isImportPGN) {
+        if (!isImportingGame) {
             // Atualiza a FEN no layout
             updateFEN(gameState);
             // Registra o movimento em notação algébrica
@@ -381,7 +401,7 @@ function movePiece(gameState) {
 }
 
 function playSound(file) {
-    if (!isImportPGN) {
+    if (!isImportingGame) {
         file.play();
     }
 }
@@ -494,11 +514,11 @@ function promotionPawn(gameState) {
         // Verifica se a peça selecionada está entre as posições de promoção
         if (promotionPositions.includes(index)) {
             // Obtém a peça de promoção
-            let promotionPiece = getPromotionPiece(index);
+            game.promotionPiece = getPromotionPiece(index);
             // Remove o peão
             game.bitboards[game.selectedColor][PAWN] &= ~TO_MASK;
             // Adiciona a peça promovida
-            game.bitboards[game.selectedColor][promotionPiece] |= TO_MASK;
+            game.bitboards[game.selectedColor][game.promotionPiece] |= TO_MASK;
             // Cor da peça adversária
             const OPPONENT_COLOR = game.selectedColor === WHITE ? BLACK : WHITE;
             // Bitboards das peças adversárias
@@ -556,7 +576,7 @@ function promotionPawn(gameState) {
             updateFEN(game);
             // Registra o movimento em notação algébrica
             const isCheck = game.kingCheckMask !== 0n;
-            game.metadata.moves.push(getSanMove(game.fromPosition, game.toPosition, game.selectedPiece, isCapture, promotionPiece, isCheck, gameState.isMate));
+            game.metadata.moves.push(getSanMove(game.fromPosition, game.toPosition, game.selectedPiece, isCapture, game.promotionPiece, isCheck, gameState.isMate));
             // Atualiza o PGN no layout
             updatePGN(game);
         }
@@ -1775,26 +1795,6 @@ function initialize(game) {
     initializeBoard(game.bitboards);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    const TEXAREA = document.getElementById('pgn');
-    const BUTTON = document.getElementById('import-pgn-button');
-    TEXAREA.addEventListener('focus', () => {
-        BUTTON.style.visibility = "visible";
-    });
-    TEXAREA.addEventListener('input', () => {
-        hideImportPGNError();
-    });
-
-    TEXAREA.addEventListener('blur', () => {
-        setTimeout(() => {
-            BUTTON.style.visibility = "hidden";
-        }, 200);
-    });
-    BUTTON.addEventListener('click', () => {
-        importPGN(TEXAREA.value);
-    });
-});
-
 function showImportPGNError(move, game) {
     const IMPORT_ERROR = document.getElementById("import-error");
     if (move === null) {
@@ -1808,8 +1808,16 @@ function showImportPGNError(move, game) {
         }
     }
     IMPORT_ERROR.style.visibility = "visible";
-    isImportPGN = false;
+    isImportingGame = false;
 }
+
+function showError(message) {
+    const IMPORT_ERROR = document.getElementById("import-error");
+    IMPORT_ERROR.textContent = message;
+    IMPORT_ERROR.style.visibility = "visible";
+    isImportingGame = false;
+}
+
 
 function hideImportPGNError() {
     const IMPORT_ERROR = document.getElementById("import-error");
@@ -1904,7 +1912,7 @@ function testMove(sanMove, game) {
 }
 
 function importPGN(pgn) {
-    isImportPGN = true;
+    isImportingGame = true;
     // Função para limpar e obter o valor dos metadados
     function getMetadataValue(metadata) {
         const match = metadata.match(/"(.*)"/);
@@ -1929,6 +1937,7 @@ function importPGN(pgn) {
         kingCheckMask: 0n,
         availableCastlingMask: 0n,
         isPromotion: false,
+        promotionPiece: null,
         isMate: false,
         metadata: {
             event: "",
@@ -2040,25 +2049,24 @@ function importPGN(pgn) {
     tempGame.fromPosition = null;
     gameState = tempGame;
     renderBoard(gameState);
-    isImportPGN = false;
+    isImportingGame = false;
     updateFEN(gameState);
     updatePGN(gameState);
 }
 
-// Função para converter coordenadas de tabuleiro para posicoes
-function boardCoordToIndex(move) {
+// Obter o indíce do bitboard a partir da movimento em notação algébrica
+function getIndexFromMove(move) {
     const file = move.charCodeAt(0) - 'a'.charCodeAt(0);
     const rank = 8 - parseInt(move[1], 10);
     return rank * 8 + file;
 }
 
-// Função para obter a peça em uma posição FEN dada uma coordenada
+// Obter a peça do movimento da notação FEN
 function getPieceFromFEN(fen, move) {
     const [position] = fen.split(' ');
     const rows = position.split('/');
-    const index = boardCoordToIndex(move);
+    const index = getIndexFromMove(move);
     let piece = null;
-
     let currentIndex = 0;
     for (const row of rows) {
         for (const char of row) {
@@ -2103,6 +2111,112 @@ function getPieceFromFEN(fen, move) {
     }
     return piece;
 }
+
+function importFEN(fen, game) {
+    // Verifica se a FEN contempla todas as partes
+    if (fen.split(' ').length < 6) {
+        showError('Invalid FEN');
+        return;
+    }
+    // Dicionário de peças
+    const PIECES = { 'p': PAWN, 'n': KNIGHT, 'b': BISHOP, 'r': ROOK, 'q': QUEEN, 'k': KING };
+    // Limpa o tabuleiro
+    game.bitboards = [
+        new Array(6).fill(0n),
+        new Array(6).fill(0n)
+    ];
+    // Divide a FEN em suas respectivas partes
+    const [position, turn, castling, enPassant, halfMoves, fullMoves] = fen.split(' ');
+    // Atualiza o turno
+    game.turn = turn === 'w' ? WHITE : BLACK;
+    game.halfMoves = parseInt(halfMoves, 10);
+    game.fullMoves = parseInt(fullMoves, 10);
+    // Roque
+    game.availableCastlingMask = 0n;
+    if (castling !== '-') {
+        for (const char of castling) {
+            switch (char) {
+                case 'K':
+                    game.availableCastlingMask |= WHITE_ROOK_KINGSIDE;
+                    break;
+                case 'Q':
+                    game.availableCastlingMask |= WHITE_ROOK_QUEENSIDE;
+                    break;
+                case 'k':
+                    game.availableCastlingMask |= BLACK_ROOK_KINGSIDE;
+                    break;
+                case 'q':
+                    game.availableCastlingMask |= BLACK_ROOK_QUEENSIDE;
+                    break;
+                default:
+                    throw new Error('Invalid Castling');
+            }
+        }
+    }
+    // En passant
+    if (enPassant !== '-') {
+        let enPassantCapture = getIndexFromMove(enPassant);
+        game.enPassant = game.turn === WHITE ? enPassantCapture + 8 : game.enPassant = enPassantCapture - 8;
+    } else {
+        game.enPassant = null;
+    }
+
+    // Obtem os dados das linhas do tabuleiro no formato FEN
+    const ranks = position.split('/'); // [rnbqkbnr,pppppppp,8,8,8,8,PPPPPPPP,RNBQKBNR]
+
+    // Percorre as linhas do tabuleiro (em relação a notação FEN)
+    for (let rank = 0; rank <= 7; rank++) {
+        // Obtem a linha atual
+        const rankFEN = ranks[rank]; // rnbqkbnr pppppppp 8 8 8 8 PPPPPPPP RNBQKBNR
+        let emptySquares = 0;
+        // Percorre as colunas do tabuleiro (em relação a notação FEN)
+        for (let file = 0; file < rankFEN.length; file++) {
+            const charFEN = rankFEN[file];
+            // Obtem a cor da peça
+            const color = charFEN === charFEN.toUpperCase() ? WHITE : BLACK;
+            if (/\d/.test(charFEN)) {
+                // Ajusta a contagem de casas vazias para colocar no indice do bitboard
+                emptySquares += (parseInt(charFEN, 10) - 1) * (color === WHITE ? -1 : 1);
+                continue;
+            }
+            // Obtem o tipo da peça
+            const pieceType = PIECES[charFEN.toLowerCase()];
+            // Obtem o índice da peça no bitboard
+            let index = (7 - rank) * 8 + (7 - file) + emptySquares;
+            game.bitboards[color][pieceType] |= 1n << BigInt(index);
+            emptySquares = 0;
+        }
+    }
+    game.metadata.fen = fen;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const TEXAREA = document.getElementById('pgn');
+    const BUTTON = document.getElementById('import-pgn-button');
+    const INPUT_FEN = document.getElementById('fen');
+
+    TEXAREA.addEventListener('focus', () => {
+        BUTTON.style.visibility = "visible";
+    });
+    TEXAREA.addEventListener('input', () => {
+        hideImportPGNError();
+    });
+
+    TEXAREA.addEventListener('blur', () => {
+        setTimeout(() => {
+            BUTTON.style.visibility = "hidden";
+        }, 200);
+    });
+    BUTTON.addEventListener('click', () => {
+        importPGN(TEXAREA.value);
+    });
+
+    INPUT_FEN.addEventListener('change', () => {
+        importFEN(INPUT_FEN.value, gameState);
+        renderBoard(gameState);
+    });
+
+});
 
 // Inicializa o jogo
 initialize(gameState);
