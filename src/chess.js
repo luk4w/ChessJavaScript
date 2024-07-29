@@ -127,7 +127,7 @@ let gameState = {
 };
 let isImportingGame = false; // Verifica se o PGN foi importado
 let isEngineTurn = true; // Verifica se o Stockfish está jogando
-let playAgainstStockfish = false; // Jogar contra o Stockfish
+let playAgainstStockfish = true; // Jogar contra o Stockfish
 
 // Inicializa o tabuleiro de xadrez com as posições iniciais das peças.
 function initializeBoard(bitboards) {
