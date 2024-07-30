@@ -2114,19 +2114,35 @@ function getPieceFromFEN(fen, move) {
 
 function importFEN(fen, game) {
     // Verifica se a FEN contempla todas as partes
-    if (fen.split(' ').length < 6) {
-        showError('Invalid FEN');
+    if (fen.split(' ').length !== 6) {
+        showError('Invalid FEN length');
         return;
     }
     // Dicionário de peças
     const PIECES = { 'p': PAWN, 'n': KNIGHT, 'b': BISHOP, 'r': ROOK, 'q': QUEEN, 'k': KING };
+    // Divide a FEN em suas respectivas partes
+    const [position, turn, castling, enPassant, halfMoves, fullMoves] = fen.split(' ');
+    // Verifica se a FEN possui dois reis adversários
+    let whiteKing = 0;
+    let blackKing = 0;
+    for (const rank of position.split('/')) {
+        // Valida a formatação da FEN
+        if (!rank.match(/^[1-8KQRBNPkqrbnp]+$/)) {
+            showError('Invalid FEN format');
+            return;
+        }
+        whiteKing += (rank.match(/K/g) || []).length;
+        blackKing += (rank.match(/k/g) || []).length;
+    }
+    if (whiteKing !== 1 || blackKing !== 1) {
+        showError('Invalid FEN kings');
+        return;
+    }
     // Limpa o tabuleiro
     game.bitboards = [
         new Array(6).fill(0n),
         new Array(6).fill(0n)
     ];
-    // Divide a FEN em suas respectivas partes
-    const [position, turn, castling, enPassant, halfMoves, fullMoves] = fen.split(' ');
     // Atualiza o turno
     game.turn = turn === 'w' ? WHITE : BLACK;
     game.halfMoves = parseInt(halfMoves, 10);
@@ -2163,31 +2179,33 @@ function importFEN(fen, game) {
 
     // Obtem os dados das linhas do tabuleiro no formato FEN
     const ranks = position.split('/'); // [rnbqkbnr,pppppppp,8,8,8,8,PPPPPPPP,RNBQKBNR]
-
-    // Percorre as linhas do tabuleiro (em relação a notação FEN)
-    for (let rank = 0; rank <= 7; rank++) {
-        // Obtem a linha atual
-        const rankFEN = ranks[rank]; // rnbqkbnr pppppppp 8 8 8 8 PPPPPPPP RNBQKBNR
-        let emptySquares = 0;
-        // Percorre as colunas do tabuleiro (em relação a notação FEN)
-        for (let file = 0; file < rankFEN.length; file++) {
-            const charFEN = rankFEN[file];
-            // Obtem a cor da peça
-            const color = charFEN === charFEN.toUpperCase() ? WHITE : BLACK;
-            if (/\d/.test(charFEN)) {
-                // Ajusta a contagem de casas vazias para colocar no indice do bitboard
-                emptySquares += (parseInt(charFEN, 10) - 1) * (color === WHITE ? -1 : 1);
-                continue;
+    // Percorre as linhas do tabuleiro
+    for (let i = 0; i < 8; i++) {
+        // Linha do tabuleiro em formato FEN
+        let rank = ranks[i];
+        // Indice da coluna
+        let j = 0;
+        // Percorre as peças de cada linha
+        for (let char of rank) {
+            // Verifica se é um número
+            if (/\d/.test(char)) {
+                j += parseInt(char, 10);
+            } else {
+                // Obtem a peça
+                let piece = PIECES[char.toLowerCase()];
+                // Obtem a cor da peça
+                let color = char === char.toLowerCase() ? BLACK : WHITE;
+                // Adiciona a peça no bitboard
+                game.bitboards[color][piece] |= 1n << BigInt((7 - i) * 8 + (7 - j));
+                j++;
             }
-            // Obtem o tipo da peça
-            const pieceType = PIECES[charFEN.toLowerCase()];
-            // Obtem o índice da peça no bitboard
-            let index = (7 - rank) * 8 + (7 - file) + emptySquares;
-            game.bitboards[color][pieceType] |= 1n << BigInt(index);
-            emptySquares = 0;
         }
     }
     game.metadata.fen = fen;
+    game.lastMoveMask = 0n;
+    game.availableMoves = 0n;
+    game.metadata.moves = [];
+    updatePGN(game);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
