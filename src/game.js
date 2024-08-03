@@ -31,7 +31,7 @@ class Game {
     constructor() {
         this.isImportingGame = false;
         this.isEngineTurn = false;
-        this.playAgainstStockfish = false;
+        this.playAgainstStockfish = true;
         this.initStockfish();
         this.board = new Board();
         this.renderer = new Renderer(this);
@@ -48,14 +48,14 @@ class Game {
                 const bestMove = e.data.split(' ')[1];
                 setTimeout(() => {
                     // Executa o melhor movimento do Stockfish
-                    executeStockfishMove(bestMove, board);
+                    this.executeStockfishMove(bestMove, this.board);
                     // Atualiza as variáveis para o próximo movimento
-                    board.fromPosition = null;
-                    board.selectedColor = null;
-                    board.toPosition = null;
-                    board.availableMoves = 0n;
+                    this.board.fromPosition = null;
+                    this.board.selectedColor = null;
+                    this.board.toPosition = null;
+                    this.board.availableMoves = 0n;
                     // Atualiza o tabuleiro
-                    renderBoard(board);
+                    this.renderer.renderBoard(this.board);
                 }, 500);
                 this.isEngineTurn = false;
             }
