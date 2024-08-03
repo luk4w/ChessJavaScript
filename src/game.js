@@ -36,6 +36,8 @@ class Game {
         this.board = new Board();
         this.renderer = new Renderer(this);
         this.renderer.renderBoard(this.board);
+
+        this.importPGN("1. g2g4 b7b5 2. g4g5 b5b4 3. g5g6 b4b3 4. g6xh7 b3xa2");
     }
 
     initStockfish() {
@@ -432,7 +434,7 @@ class Game {
             // Obtém o quadrado
             const square = squares[indexHTML];
             // Adiciona a peça ao tabuleiro
-            addPieceToBoard(promotionPositions[i], getPromotionPiece(indexHTML), board.selectedColor);
+            this.renderer.addPieceToBoard(promotionPositions[i], getPromotionPiece(indexHTML), board.selectedColor);
             // Remove o efeito de esmaecimento
             square.classList.remove("dimmed");
             // Adiciona o efeito de promoção

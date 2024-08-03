@@ -1,5 +1,6 @@
 import { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING } from './constants/pieces.js';
 import { WHITE, BLACK } from './constants/colors.js';
+import { A_FILE, H_FILE } from './constants/masks.js';
 /** Obtem os movimentos do peão
  * @param {Integer} from
  * @param {Integer} color
@@ -36,22 +37,15 @@ function getPawnMoves(from, color, bitboards, enPassant) {
             bitboardMoves |= movement;
         }
     }
-    // Movimentos de captura
-    const CAPTURE_RIGHT = color === WHITE ? ((1n << BigInt(from)) << 7n) : ((1n << BigInt(from)) >> 9n);
-    const CAPTURE_LEFT = color === WHITE ? ((1n << BigInt(from)) << 9n) : ((1n << BigInt(from)) >> 7n);
-    // Verifica a captura para a direita
-    if (CAPTURE_RIGHT & OPPONENT_PIECES) {
-        bitboardMoves |= CAPTURE_RIGHT;
-    }
-    // Verifica a captura para a esquerda
-    if (CAPTURE_LEFT & OPPONENT_PIECES) {
-        bitboardMoves |= CAPTURE_LEFT;
-    }
+
+    // Movimento de captura
+    bitboardMoves |= getPawnAttackerMask(from, color) & OPPONENT_PIECES;
+    
     // Movimento de captura en passant
     if (enPassant !== null) {
         // Posicoes laterais
-        const LEFT =  from + 1;
-        const RIGHT = from -1;
+        const LEFT = from + 1;
+        const RIGHT = from - 1;
         // se a posição lateral a esquerda for igual a do peão marcado para captura en passant
         if (LEFT === enPassant) {
             bitboardMoves |= CAPTURE_LEFT;
@@ -71,21 +65,16 @@ function getPawnMoves(from, color, bitboards, enPassant) {
  * @returns {BigInt} Mascara de ataque do peão
  */
 function getPawnAttackerMask(index, color) {
-    const WHITE_CAPTURE_RIGHT = (1n << BigInt(index)) << 7n;
-    const WHITE_CAPTURE_LEFT = (1n << BigInt(index)) << 9n;
-    const BLACK_CAPTURE_RIGHT = (1n << BigInt(index)) >> 9n;
-    const BLACK_CAPTURE_LEFT = (1n << BigInt(index)) >> 7n;
-
-    if (color === WHITE) {
-        if (index % 8 === 0) return WHITE_CAPTURE_LEFT;
-        if (index % 8 === 7) return WHITE_CAPTURE_RIGHT;
-        return WHITE_CAPTURE_LEFT | WHITE_CAPTURE_RIGHT;
+    // Movimentos de captura
+    const CAPTURE_RIGHT = color === WHITE ? ((1n << BigInt(index)) << 7n) : ((1n << BigInt(index)) >> 9n);
+    const CAPTURE_LEFT = color === WHITE ? ((1n << BigInt(index)) << 9n) : ((1n << BigInt(index)) >> 7n);
+    if (1n << BigInt(index) & A_FILE) {
+        return CAPTURE_RIGHT;
     }
-    else {
-        if (index % 8 === 0) return BLACK_CAPTURE_LEFT;
-        if (index % 8 === 7) return BLACK_CAPTURE_RIGHT;
-        return BLACK_CAPTURE_LEFT | BLACK_CAPTURE_RIGHT;
+    else if (1n << BigInt(index) & H_FILE) {
+        return CAPTURE_LEFT;
     }
+    return CAPTURE_RIGHT | CAPTURE_LEFT;
 }
 
 export { getPawnMoves, getPawnAttackerMask };
