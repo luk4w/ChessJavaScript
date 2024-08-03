@@ -34,7 +34,6 @@ class Board {
     fullMoves; // Número total de movimentos completos
     kingCheckMask; // Máscara do rei em xeque
     availableCastlingMask // Máscara para os roques disponíveis
-    isPromotion; // Verifica se está ocorrendo uma promoção de peão
     promotionPiece; // Peça promovida
     isMate // Verificar se houve xeque mate
     metadata; // Metadados da partida

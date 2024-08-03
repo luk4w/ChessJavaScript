@@ -27,6 +27,7 @@ class Game {
     wasmSupported; // Supote a WebAssembly
     stockfish; // Stockfish
     renderer; // HTML
+    isPromotion;
 
     constructor() {
         this.isImportingGame = false;
@@ -36,7 +37,7 @@ class Game {
         this.board = new Board();
         this.renderer = new Renderer(this);
         this.renderer.renderBoard(this.board);
-
+        this.isPromotion = false;
         this.importPGN("1. g2g4 b7b5 2. g4g5 b5b4 3. g5g6 b4b3 4. g6xh7 b3xa2");
     }
 
@@ -115,8 +116,6 @@ class Game {
                 case PAWN:
                     // Verifica se o peão chegou ao final do tabuleiro
                     if (TO_MASK & RANK_8 || TO_MASK & RANK_1) {
-                        // Informa que está ocorrendo uma promoção de peão
-                        board.isPromotion = true;
                         this.promotionPawn(board);
                         return;
                     }
@@ -309,140 +308,149 @@ class Game {
 
 
     promotionPawn(board) {
+        // Informa que está ocorrendo uma promoção de peão
+        this.isPromotion = true;
+        // Elementos do tabuleiro
         const boardElement = document.getElementById("chessboard");
         const squares = boardElement.getElementsByTagName("td");
 
+        const TO_MASK = 1n << BigInt(board.toPosition);
+        const FROM_MASK = 1n << BigInt(board.fromPosition);
+        const color = board.selectedColor;
+
+        // Variáveis de controle
+        let opponentPiece = null;
+        let isCapture = false;
+
         // Remove os efeitos visuais e adiciona esmaecimento a todos os quadrados
+        const handlePromotionClick = (event) => this.handlePromotionClickHandler(event, board);
         for (let square of squares) {
             square.classList.remove("available", "selected");
             square.classList.add("dimmed");
-            square.removeEventListener("click", (event) => this.handleOnMoveClick(event, board));
             // Adiciona o evento de clique a todos os quadrados
-            square.addEventListener("click", (event) => this.handlePromotionClick(event, board));
+            square.addEventListener("click", handlePromotionClick);
         }
 
         // Determina as posições das peças que aparecerão para a promoção (em relação ao bitboard)
-        const promotionPositions = board.selectedColor === WHITE ?
-            [board.toPosition, board.toPosition - 8, board.toPosition - 16, board.toPosition - 24] :
-            [board.toPosition, board.toPosition + 8, board.toPosition + 16, board.toPosition + 24];
+        const promotionPositions = color === WHITE
+            ? [board.toPosition, board.toPosition - 8, board.toPosition - 16, board.toPosition - 24]
+            : [board.toPosition, board.toPosition + 8, board.toPosition + 16, board.toPosition + 24];
 
-        // Evento de clique para a promoção
-        function handlePromotionClick(event, board) {
-            // Obtem a mascara da posição de destino e origem
-            const TO_MASK = 1n << BigInt(board.toPosition);
-            const FROM_MASK = 1n << BigInt(board.fromPosition);
+        // Função para promover o peão
+        const promote = (board) => {
+            // Remove o peão
+            board.bitboards[color][PAWN] &= ~TO_MASK; // LINHA 340 DO ERRO AQUI <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            // Adiciona a peça promovida
+            board.bitboards[color][board.promotionPiece] |= TO_MASK;
 
-            // Obtém a peça selecionada para a promoção
+            // Cor da peça adversária e bitboards das peças adversárias
+            const OPPONENT_COLOR = color === WHITE ? BLACK : WHITE;
+            const OPPONENT_PIECES = board.bitboards[OPPONENT_COLOR][PAWN]
+                | board.bitboards[OPPONENT_COLOR][KNIGHT]
+                | board.bitboards[OPPONENT_COLOR][BISHOP]
+                | board.bitboards[OPPONENT_COLOR][ROOK]
+                | board.bitboards[OPPONENT_COLOR][QUEEN]
+                | board.bitboards[OPPONENT_COLOR][KING];
+
+            // Verifica se houve captura de peça
+            if (TO_MASK & OPPONENT_PIECES) {
+                isCapture = true;
+                for (let op = 0; op < 6; op++) {
+                    if (board.bitboards[OPPONENT_COLOR][op] & TO_MASK) {
+                        opponentPiece = op;
+                        board.bitboards[OPPONENT_COLOR][op] &= ~TO_MASK;
+                    }
+                }
+            }
+
+            // Verifica se o rei adversário está em xeque
+            const opponentKingCheck = board.isKingInCheck(board.bitboards, OPPONENT_COLOR);
+            if (opponentKingCheck) {
+                board.kingCheckMask = opponentKingCheck;
+                // Verifica se o rei adversário está em xeque-mate
+                if (board.getDefenderMovesMask(board, OPPONENT_COLOR) === 0n) {
+                    board.isMate = true;
+                    this.renderer.showCheckmate(board);
+                } else {
+                    // Efeito sonoro de xeque
+                    this.playSound(CHECK_SOUND);
+                }
+            } else if (board.getMovesMask(OPPONENT_COLOR, board.bitboards, board.enPassant) === 0n) {
+                this.renderer.showDraw(board);
+            } else {
+                board.kingCheckMask = 0n;
+            }
+
+            // Efeito sonoro de captura ou movimento
+            this.playSound(isCapture ? CAPTURE_SOUND : MOVE_SOUND);
+
+            // Contagem das jogadas completas e atualização do turno
+            if (board.turn === BLACK) board.fullMoves++;
+            board.turn = board.turn === WHITE ? BLACK : WHITE;
+
+            // Atualiza a FEN e PGN no layout
+            this.renderer.updateFEN(board);
+            const isCheck = board.kingCheckMask !== 0n;
+            board.metadata.moves.push(Notation.getSanMove(board.fromPosition, board.toPosition, board.selectedPiece, isCapture, board.promotionPiece, isCheck, board.isMate));
+            this.renderer.updatePGN(board);
+        };
+
+        // Função de evento de clique para a promoção
+        this.handlePromotionClickHandler = function (event, board) {
             const index = parseInt(event.currentTarget.dataset.index);
-            // Verificar se houve captura de peça
-            let isCapture = false;
-            let opponentPiece = null;
+
             // Verifica se a peça selecionada está entre as posições de promoção
             if (promotionPositions.includes(index)) {
-                // Obtém a peça de promoção
-                board.promotionPiece = getPromotionPiece(index);
-                // Remove o peão
-                board.bitboards[board.selectedColor][PAWN] &= ~TO_MASK;
-                // Adiciona a peça promovida
-                board.bitboards[board.selectedColor][board.promotionPiece] |= TO_MASK;
-                // Cor da peça adversária
-                const OPPONENT_COLOR = board.selectedColor === WHITE ? BLACK : WHITE;
-                // Bitboards das peças adversárias
-                const OPPONENT_PIECES = board.bitboards[OPPONENT_COLOR][PAWN] | board.bitboards[OPPONENT_COLOR][KNIGHT] | board.bitboards[OPPONENT_COLOR][BISHOP]
-                    | board.bitboards[OPPONENT_COLOR][ROOK] | board.bitboards[OPPONENT_COLOR][QUEEN] | board.bitboards[OPPONENT_COLOR][KING];
-                // Verifica se houve captura de peça
-                if (TO_MASK & OPPONENT_PIECES) {
-                    isCapture = true;
-                    // remove a peça adversária
-                    for (let op = 0; op < 6; op++) {
-                        if (board.bitboards[OPPONENT_COLOR][op] & TO_MASK) {
-                            // Marca a peça adversária capturada
-                            opponentPiece = op;
-                            // Remove a peça adversária
-                            board.bitboards[OPPONENT_COLOR][op] &= ~TO_MASK;
-                        }
-                    }
+                const rank = Math.floor(index / 8);
+                switch (rank) {
+                    case 0:
+                    case 7:
+                        board.promotionPiece = QUEEN;
+                        break;
+                    case 1:
+                    case 6:
+                        board.promotionPiece = KNIGHT;
+                        break;
+                    case 2:
+                    case 5:
+                        board.promotionPiece = ROOK;
+                        break;
+                    case 3:
+                    case 4:
+                        board.promotionPiece = BISHOP;
+                        break;
                 }
-                // Verifica se o rei adversário está em xeque
-                let opponentKingCheck = isKingInCheck(board.bitboards, OPPONENT_COLOR);
-                if (opponentKingCheck) {
-                    board.kingCheckMask = opponentKingCheck; // Marca o rei adversário
-                    // verifica se o rei adversário está em xeque mate
-                    if (getDefenderMovesMask(board, OPPONENT_COLOR) === 0n) {
-                        board.isMate = true;
-                        showCheckmate(board);
-                    }
-                    else {
-                        // Efeito sonoro de xeque
-                        playSound(CHECK_SOUND);
-                    }
-                }
-                // Verifica o empate por afoboardnto
-                else if (getMovesMask(OPPONENT_COLOR, board.bitboards, board.enPassant) === 0n) {
-                    showDraw(board);
-                }
-                else {
-                    // Desmarca o rei em xeque
-                    board.kingCheckMask = 0n;
-                }
-                if (isCapture) {
-                    // Efeito sonoro de captura
-                    playSound(CAPTURE_SOUND);
-                }
-                else {
-                    playSound(MOVE_SOUND);
-                }
-                // Contagem das jogadas completas
-                if (board.turn === BLACK) {
-                    board.fullMoves++;
-                }
-                // Atualiza o turno
-                board.turn = board.turn === WHITE ? BLACK : WHITE;
-                // Atualiza a FEN no layout
-                updateFEN(board);
-                // Registra o movimento em notação algébrica
-                const isCheck = board.kingCheckMask !== 0n;
-                board.metadata.moves.push(getSanMove(board.fromPosition, board.toPosition, board.selectedPiece, isCapture, board.promotionPiece, isCheck, board.isMate));
-                // Atualiza o PGN no layout
-                updatePGN(board);
-            }
-            else {
-                // Restaura o peão
+                promote(board);
+                board.lastMoveMask = FROM_MASK | TO_MASK;
+            } else {
+                // Restaura o peão se a promoção não for válida
                 board.bitboards[board.selectedColor][PAWN] |= FROM_MASK;
-                // Remove o peão da nova posição
                 board.bitboards[board.selectedColor][PAWN] &= ~TO_MASK;
                 if (isCapture) {
-                    // Restaura a peça capturada
-                    board.bitboards[OPPONENT_COLOR][opponentPiece] |= TO_MASK;
+                    board.bitboards[board.selectedColor][opponentPiece] |= TO_MASK;
                 }
             }
-
-            board.lastMoveMask = FROM_MASK | TO_MASK;
             board.fromPosition = null;
             board.selectedColor = null;
             board.toPosition = null;
             board.availableMoves = 0n;
+
             // Atualiza o tabuleiro com a peça promovida
-            Renderer.renderBoard(board);
-            board.isPromotion = false;
-        }
+            this.renderer.renderBoard(board);
+            this.isPromotion = false;
+        };
 
         // Adiciona as peças de promoção e destaca os quadrados
         for (let i in promotionPositions) {
-            // Obtém o índice do quadrado
             const indexHTML = 63 - promotionPositions[i];
-            // Obtém o quadrado
             const square = squares[indexHTML];
-            // Adiciona a peça ao tabuleiro
-            this.renderer.addPieceToBoard(promotionPositions[i], getPromotionPiece(indexHTML), board.selectedColor);
-            // Remove o efeito de esmaecimento
+            this.renderer.addPieceToBoard(promotionPositions[i], this.getPromotionPiece(indexHTML), board.selectedColor);
             square.classList.remove("dimmed");
-            // Adiciona o efeito de promoção
             square.classList.add("promotion");
-            // Define o índice para identificar qual quadrado foi clicado
             square.dataset.index = promotionPositions[i];
         }
     }
+
 
     getPromotionPiece(index) {
         let rank = Math.floor(index / 8);
@@ -466,6 +474,7 @@ class Game {
 
     // Função para selecionar e mover a peça
     onMove(board, position) {
+        if (this.isPromotion) return;
         // Verifica se a peça ainda não foi selecionada
         if (board.fromPosition === null) {
             for (let color = 0; color < 2; color++) {
@@ -512,7 +521,7 @@ class Game {
                 }
             }
             // Atualiza as variáveis para o próximo movimento, se não estiver ocorrendo uma promoção de peão
-            if (!board.isPromotion) {
+            if (!this.isPromotion) {
                 board.fromPosition = null;
                 board.selectedColor = null;
                 board.toPosition = null;
@@ -520,7 +529,7 @@ class Game {
             }
         }
         // Se não estiver ocorrendo uma promoção de peão
-        if (!board.isPromotion) {
+        if (!this.isPromotion) {
             this.renderer.renderBoard(board); // Renderiza o tabuleiro
         }
     }
@@ -583,7 +592,7 @@ class Game {
             for (let i = 0; i < 64; i++) {
                 if (bitboard & (1n << BigInt(i))) {
                     // Obter os movimentos possíveis da peça
-                    let moveMask = board.board.getPieceMovesMask(i, board.selectedPiece, board.turn, board.bitboards, board.enPassant);
+                    let moveMask = board.getPieceMovesMask(i, board.selectedPiece, board.turn, board.bitboards, board.enPassant);
                     if (moveMask & 1n << BigInt(board.toPosition)) {
                         board.fromPosition = i;
                         break;
@@ -730,8 +739,8 @@ class Game {
         tempBoard.availableMoves = 0n;
         tempBoard.fromPosition = null;
         this.board = tempBoard;
-        this.renderer.renderBoard(this.board);
         this.isImportingGame = false;
+        this.renderer.renderBoard(this.board);
         this.renderer.updateFEN(this.board);
         this.renderer.updatePGN(this.board);
     }

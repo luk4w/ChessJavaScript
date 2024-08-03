@@ -55,6 +55,9 @@ class Renderer {
         Função para renderizar o tabuleiro no HTML
     */
     renderBoard(board) {
+        // Apenas renderiza o tabuleiro se não estiver importando um jogo
+        if (this.game.isImportingGame) return;
+        // Obtem o tabuleiro
         const boardElement = document.getElementById("chessboard");
         boardElement.innerHTML = ""; // Limpa tabuleiro
         // Iteração das linhas
@@ -99,7 +102,6 @@ class Renderer {
             }
             boardElement.appendChild(row); // adiciona a linha ao tabuleiro
         }
-
         // Atualização das peças no tabuleiro
         this.updatePiecesOnBoard(board);
     }
