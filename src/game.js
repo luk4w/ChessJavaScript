@@ -19,8 +19,7 @@ import Renderer from "./renderer.js";
 import Notation from "./notation.js";
 import Board from "./board.js";
 
-var wasmSupported = typeof WebAssembly === 'object' && WebAssembly.validate(Uint8Array.of(0x0, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00));
-var stockfish = new Worker(wasmSupported ? '../stockfish/stockfish.wasm.js' : '../stockfish/stockfish.js');
+
 
 class Game {
     isImportingGame; // Verifica se o PGN foi importado
@@ -30,11 +29,15 @@ class Game {
     stockfish; // Stockfish
     renderer; // HTML
     isPromotion;
+    wasmSupported;
+    stockfish;
 
-    constructor() {
+    constructor(wasmSupported, stockfish) {
         this.isImportingGame = false;
         this.isEngineTurn = true;
         this.playAgainstStockfish = true;
+        this.wasmSupported = wasmSupported;
+        this.stockfish = stockfish;
         this.initStockfish();
         this.board = new Board();
         this.renderer = new Renderer(this);
@@ -44,7 +47,7 @@ class Game {
 
     initStockfish() {
         // Adiciona o listener ao stockfish
-        stockfish.addEventListener('message', (e) => {
+        this.stockfish.addEventListener('message', (e) => {
             if (e.data.startsWith('bestmove')) {
                 this.isEngineTurn = true;
                 const bestMove = e.data.split(' ')[1];
@@ -61,7 +64,7 @@ class Game {
                 }, 500);
                 this.isEngineTurn = false;
             }
-        })
+        });
     }
 
     executeStockfishMove(bestMove, board) {
@@ -272,9 +275,9 @@ class Game {
 
                 if (this.isEngineTurn && this.playAgainstStockfish) {
                     // Mostrar o tabuleiro no console
-                    stockfish.postMessage('position fen ' + board.fen);
+                    this.stockfish.postMessage('position fen ' + board.fen);
                     // Solicitar o melhor movimento com profundidade 2
-                    stockfish.postMessage('go depth 12');
+                    this.stockfish.postMessage('go depth 12');
                 } else if (!this.isEngineTurn && this.playAgainstStockfish) {
                     this.isEngineTurn = true;
                 }
