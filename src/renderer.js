@@ -199,13 +199,12 @@ class Renderer {
             // Oculta a mensagem de empate
             document.getElementById("end").style.display = "none";
             // Reinicia o jogo
-            game.restart();
+            game.restart(board);
         });
 
     }
 
     showCheckmate(board) {
-        // Obtem a referência do jogo atual
         const game = this.game;
         // PGN
         board.metadata.result = board.selectedColor === WHITE ? "1-0" : "0-1";

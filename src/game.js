@@ -31,7 +31,7 @@ class Game {
 
     constructor() {
         this.isImportingGame = false;
-        this.isEngineTurn = false;
+        this.isEngineTurn = true;
         this.playAgainstStockfish = true;
         this.initStockfish();
         this.board = new Board();
@@ -44,7 +44,7 @@ class Game {
         this.wasmSupported = typeof WebAssembly === 'object' && WebAssembly.validate(Uint8Array.of(0x0, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00));
         this.stockfish = new Worker(this.wasmSupported ? '../stockfish/stockfish.wasm.js' : '../stockfish/stockfish.js');
         // Adiciona o listener ao stockfish
-        this.stockfish.addEventListener('message', function (e) {
+        this.stockfish.addEventListener('message', (e) => {
             if (e.data.startsWith('bestmove')) {
                 this.isEngineTurn = true;
                 const bestMove = e.data.split(' ')[1];
@@ -61,7 +61,7 @@ class Game {
                 }, 500);
                 this.isEngineTurn = false;
             }
-        });
+        })
     }
 
     executeStockfishMove(bestMove, board) {
@@ -85,7 +85,7 @@ class Game {
                     break;
             }
         }
-        testMove(bestMove, board);
+        this.testMove(bestMove, board);
     }
 
     // Move a peça
@@ -272,9 +272,9 @@ class Game {
 
                 if (this.isEngineTurn && this.playAgainstStockfish) {
                     // Mostrar o tabuleiro no console
-                    stockfish.postMessage('position fen ' + board.fen);
+                    this.stockfish.postMessage('position fen ' + board.fen);
                     // Solicitar o melhor movimento com profundidade 2
-                    stockfish.postMessage('go depth 12');
+                    this.stockfish.postMessage('go depth 12');
                 } else if (!this.isEngineTurn && this.playAgainstStockfish) {
                     this.isEngineTurn = true;
                 }
@@ -374,7 +374,7 @@ class Game {
 
             // Atualiza a FEN e PGN no layout
             this.renderer.updateFEN(board);
-            
+
             // Se não estiver importando o a partida, registra o movimento em PGN
             if (!this.isImportingGame) {
                 const isCheck = board.kingCheckMask !== 0n;
@@ -567,6 +567,7 @@ class Game {
         this.renderer.renderBoard(board);
         this.renderer.updateFEN(board);
         this.renderer.updatePGN(board);
+
     }
 
     testMove(sanMove, board) {

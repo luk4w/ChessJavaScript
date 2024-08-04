@@ -45,7 +45,6 @@ class Board {
             new Array(6).fill(0n), // Peças brancas
             new Array(6).fill(0n)  // Peças pretas
         ];
-
         // Inicializa o tabuleiro
         // Peões
         this.bitboards[BLACK][PAWN] = 0x00FF000000000000n;
@@ -65,7 +64,6 @@ class Board {
         // Reis
         this.bitboards[BLACK][KING] = 0x0800000000000000n;
         this.bitboards[WHITE][KING] = 0x0000000000000008n;
-
         // Reseta as variáveis da partida
         this.availableMoves = 0n;
         this.selectedPiece = null;
@@ -91,6 +89,7 @@ class Board {
             moves: [],
             fen: ""
         };
+        this.isMate = false;
         this.invalidMove = null;
         this.lastMoveMask = 0n;
     }

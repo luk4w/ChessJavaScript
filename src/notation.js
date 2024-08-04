@@ -173,7 +173,7 @@ class Notation {
     static getPieceFromFEN(fen, move) {
         const [position] = fen.split(' ');
         const rows = position.split('/');
-        const index = getIndexFromMove(move);
+        const index = this.getIndexFromMove(move);
         let piece = null;
         let currentIndex = 0;
         for (const row of rows) {
