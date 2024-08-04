@@ -40,12 +40,14 @@ function getPawnMoves(from, color, bitboards, enPassant) {
 
     // Movimento de captura
     bitboardMoves |= getPawnAttackerMask(from, color) & OPPONENT_PIECES;
-    
+
     // Movimento de captura en passant
     if (enPassant !== null) {
-        // Posicoes laterais
-        const LEFT = from + 1;
-        const RIGHT = from - 1;
+        const CAPTURE_RIGHT = color === WHITE ? ((1n << BigInt(index)) << 7n) : ((1n << BigInt(index)) >> 9n);
+        const CAPTURE_LEFT = color === WHITE ? ((1n << BigInt(index)) << 9n) : ((1n << BigInt(index)) >> 7n);
+        // Posicoes laterais em relação aos bitboards
+        const LEFT = from + 1; 
+        const RIGHT = from - 1; 
         // se a posição lateral a esquerda for igual a do peão marcado para captura en passant
         if (LEFT === enPassant) {
             bitboardMoves |= CAPTURE_LEFT;
