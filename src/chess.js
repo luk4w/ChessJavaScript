@@ -1,2 +1,2 @@
 import Game from "./game.js";
-new Game();
+const game = new Game();

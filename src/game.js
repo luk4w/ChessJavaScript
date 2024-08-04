@@ -19,12 +19,14 @@ import Renderer from "./renderer.js";
 import Notation from "./notation.js";
 import Board from "./board.js";
 
+var wasmSupported = typeof WebAssembly === 'object' && WebAssembly.validate(Uint8Array.of(0x0, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00));
+var stockfish = new Worker(wasmSupported ? '../stockfish/stockfish.wasm.js' : '../stockfish/stockfish.js');
+
 class Game {
     isImportingGame; // Verifica se o PGN foi importado
     isEngineTurn; // Verifica se o Stockfish está jogando
     playAgainstStockfish; // Jogar contra o Stockfish
     board; // Tabuleiro
-    wasmSupported; // Supote a WebAssembly
     stockfish; // Stockfish
     renderer; // HTML
     isPromotion;
@@ -41,10 +43,8 @@ class Game {
     }
 
     initStockfish() {
-        this.wasmSupported = typeof WebAssembly === 'object' && WebAssembly.validate(Uint8Array.of(0x0, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00));
-        this.stockfish = new Worker(this.wasmSupported ? '../stockfish/stockfish.wasm.js' : '../stockfish/stockfish.js');
         // Adiciona o listener ao stockfish
-        this.stockfish.addEventListener('message', (e) => {
+        stockfish.addEventListener('message', (e) => {
             if (e.data.startsWith('bestmove')) {
                 this.isEngineTurn = true;
                 const bestMove = e.data.split(' ')[1];
@@ -272,9 +272,9 @@ class Game {
 
                 if (this.isEngineTurn && this.playAgainstStockfish) {
                     // Mostrar o tabuleiro no console
-                    this.stockfish.postMessage('position fen ' + board.fen);
+                    stockfish.postMessage('position fen ' + board.fen);
                     // Solicitar o melhor movimento com profundidade 2
-                    this.stockfish.postMessage('go depth 12');
+                    stockfish.postMessage('go depth 12');
                 } else if (!this.isEngineTurn && this.playAgainstStockfish) {
                     this.isEngineTurn = true;
                 }
