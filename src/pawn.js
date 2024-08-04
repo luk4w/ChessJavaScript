@@ -43,8 +43,8 @@ function getPawnMoves(from, color, bitboards, enPassant) {
 
     // Movimento de captura en passant
     if (enPassant !== null) {
-        const CAPTURE_RIGHT = color === WHITE ? ((1n << BigInt(index)) << 7n) : ((1n << BigInt(index)) >> 9n);
-        const CAPTURE_LEFT = color === WHITE ? ((1n << BigInt(index)) << 9n) : ((1n << BigInt(index)) >> 7n);
+        const CAPTURE_RIGHT = color === WHITE ? ((1n << BigInt(from)) << 7n) : ((1n << BigInt(from)) >> 9n);
+        const CAPTURE_LEFT = color === WHITE ? ((1n << BigInt(from)) << 9n) : ((1n << BigInt(from)) >> 7n);
         // Posicoes laterais em relação aos bitboards
         const LEFT = from + 1; 
         const RIGHT = from - 1; 
