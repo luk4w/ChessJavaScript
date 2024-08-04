@@ -38,7 +38,6 @@ class Game {
         this.renderer = new Renderer(this);
         this.renderer.renderBoard(this.board);
         this.isPromotion = false;
-        this.importPGN("1. g2g4 b7b5 2. g4g5 b5b4 3. g5g6 b4b3 4. g6xh7 b3xa2");
     }
 
     initStockfish() {
@@ -306,7 +305,6 @@ class Game {
         // console.log(event.currentTarget.dataset.index);
     }
 
-
     promotionPawn(board) {
         // Informa que está ocorrendo uma promoção de peão
         this.isPromotion = true;
@@ -321,20 +319,6 @@ class Game {
         // Variáveis de controle
         let opponentPiece = null;
         let isCapture = false;
-
-        // Remove os efeitos visuais e adiciona esmaecimento a todos os quadrados
-        const handlePromotionClick = (event) => this.handlePromotionClickHandler(event, board);
-        for (let square of squares) {
-            square.classList.remove("available", "selected");
-            square.classList.add("dimmed");
-            // Adiciona o evento de clique a todos os quadrados
-            square.addEventListener("click", handlePromotionClick);
-        }
-
-        // Determina as posições das peças que aparecerão para a promoção (em relação ao bitboard)
-        const promotionPositions = color === WHITE
-            ? [board.toPosition, board.toPosition - 8, board.toPosition - 16, board.toPosition - 24]
-            : [board.toPosition, board.toPosition + 8, board.toPosition + 16, board.toPosition + 24];
 
         // Função para promover o peão
         const promote = (board) => {
@@ -390,10 +374,44 @@ class Game {
 
             // Atualiza a FEN e PGN no layout
             this.renderer.updateFEN(board);
-            const isCheck = board.kingCheckMask !== 0n;
-            board.metadata.moves.push(Notation.getSanMove(board.fromPosition, board.toPosition, board.selectedPiece, isCapture, board.promotionPiece, isCheck, board.isMate));
+            
+            // Se não estiver importando o a partida, registra o movimento em PGN
+            if (!this.isImportingGame) {
+                const isCheck = board.kingCheckMask !== 0n;
+                board.metadata.moves.push(Notation.getSanMove(board.fromPosition, board.toPosition, board.selectedPiece, isCapture, board.promotionPiece, isCheck, board.isMate));
+            }
+
             this.renderer.updatePGN(board);
         };
+
+        if (board.promotionPiece !== null && board.promotionPiece !== undefined) {
+            promote(board);
+            board.lastMoveMask = FROM_MASK | TO_MASK;
+            board.fromPosition = null;
+            board.selectedColor = null;
+            board.toPosition = null;
+            board.availableMoves = 0n;
+            board.selectedPiece = null;
+            board.promotionPiece = null;
+            // Atualiza o tabuleiro com a peça promovida
+            this.isPromotion = false;
+            this.renderer.renderBoard(board);
+            return;
+        }
+
+        // Remove os efeitos visuais e adiciona esmaecimento a todos os quadrados
+        const handlePromotionClick = (event) => this.handlePromotionClickHandler(event, board);
+        for (let square of squares) {
+            square.classList.remove("available", "selected");
+            square.classList.add("dimmed");
+            // Adiciona o evento de clique a todos os quadrados
+            square.addEventListener("click", handlePromotionClick);
+        }
+
+        // Determina as posições das peças que aparecerão para a promoção (em relação ao bitboard)
+        const promotionPositions = color === WHITE
+            ? [board.toPosition, board.toPosition - 8, board.toPosition - 16, board.toPosition - 24]
+            : [board.toPosition, board.toPosition + 8, board.toPosition + 16, board.toPosition + 24];
 
         // Função de evento de clique para a promoção
         this.handlePromotionClickHandler = function (event, board) {
@@ -434,10 +452,12 @@ class Game {
             board.selectedColor = null;
             board.toPosition = null;
             board.availableMoves = 0n;
+            board.selectedPiece = null;
+            board.promotionPiece = null;
 
             // Atualiza o tabuleiro com a peça promovida
-            this.renderer.renderBoard(board);
             this.isPromotion = false;
+            this.renderer.renderBoard(board);
         };
 
         // Adiciona as peças de promoção e destaca os quadrados
@@ -491,7 +511,7 @@ class Game {
                         // Redefine a máscara de movimentos disponíveis
                         board.availableMoves = 0n;
                         // Obtem os movimentos disponíveis
-                        board.getAvailableMoves(board);
+                        board.getAvailableMoves();
                     }
                 }
             }
@@ -558,6 +578,11 @@ class Game {
         let fromRank = null;
         let toFile = null;
         let toRank = null;
+
+
+        if (sanMove.includes("=")) {
+            board.promotionPiece = PIECES_SAN.indexOf(sanMove.charAt(sanMove.length - 1));
+        }
 
         // Roque curto ou longo
         if (formattedMove === "O-O" || formattedMove === "O-O-O") {
@@ -630,7 +655,7 @@ class Game {
             || board.fromPosition === undefined || board.toPosition === undefined) {
             board.invalidMove = sanMove;
         } else {
-            board.getAvailableMoves(board);
+            board.getAvailableMoves();
             this.movePiece(board);
         }
     }
@@ -699,7 +724,7 @@ class Game {
             if (firstChar === firstChar.toLowerCase()) {
                 // exf4 e3xf4 (não pode capturar na mesma coluna)
                 if (move.includes('x') && (move.charAt(0) === move.charAt(2) || move.charAt(0) === move.charAt(2))) {
-                    showImportPGNError(move, tempBoard);
+                    this.renderer.showImportPGNError(move, tempBoard);
                     return;
                 }
                 tempBoard.selectedPiece = PAWN;
@@ -724,7 +749,7 @@ class Game {
                         tempBoard.selectedPiece = KING;
                         break;
                     default:
-                        showImportPGNError(move, tempBoard);
+                        this.renderer.showImportPGNError(move, tempBoard);
                         return;
                 }
             }

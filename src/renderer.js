@@ -156,20 +156,20 @@ class Renderer {
         document.getElementById("fen").value = board.fen;
     }
 
-    showImportPGNError(move, game) {
+    showImportPGNError(move, board) {
         const IMPORT_ERROR = document.getElementById("import-error");
         if (move === null) {
             IMPORT_ERROR.textContent = "PGN is empty";
         } else {
-            const count = game.board.metadata.moves.indexOf(move);
-            if (game.board.turn === WHITE) { // WHITE
+            const count = board.metadata.moves.indexOf(move);
+            if (board.turn === WHITE) { // WHITE
                 IMPORT_ERROR.textContent = `Invalid move: ${Math.floor(count / 2) + 1}. ${move}`;
             } else { // BLACK
                 IMPORT_ERROR.textContent = `Invalid move: ${Math.floor(count / 2) + 1}. ... ${move}`;
             }
         }
         IMPORT_ERROR.style.visibility = "visible";
-        game.isImportingGame = false;
+        this.game.isImportingGame = false;
     }
 
     showError(message) {

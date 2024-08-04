@@ -176,19 +176,8 @@ class Board {
             this.bitboards[WHITE].map(bitboard => BigInt(bitboard)), // Copia o array de peças brancas
             this.bitboards[BLACK].map(bitboard => BigInt(bitboard))  // Copia o array de peças pretas
         ];
-        let piece;
-        let color;
-        for (let i = 0; i < 6; i++) {
-            if (tempBitboards[WHITE][i] & (1n << BigInt(fromPosition))) {
-                color = WHITE;
-                piece = i;
-                break;
-            } else if (tempBitboards[BLACK][i] & (1n << BigInt(fromPosition))) {
-                color = BLACK;
-                piece = i;
-                break;
-            }
-        }
+        const piece = this.selectedPiece;
+        const color = this.selectedColor;
         // Mascara de bits do rei
         const KING_MASK = tempBitboards[color][KING];
         // Cor da peça adversária
