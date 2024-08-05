@@ -68,23 +68,24 @@ class Game {
     executeStockfishMove(bestMove, board) {
         board.selectedPiece = Notation.getPieceFromFEN(board.fen, bestMove);
         board.selectedColor = board.turn;
-
         // Caso uma promoção
         if (bestMove.length === 5) {
             switch (bestMove.charAt(4)) {
                 case 'q':
-                    this.board.promotionPiece = QUEEN;
+                    board.promotionPiece = QUEEN;
                     break;
                 case 'r':
-                    this.board.promotionPiece = ROOK;
+                    board.promotionPiece = ROOK;
                     break;
                 case 'b':
-                    this.board.promotionPiece = BISHOP;
+                    board.promotionPiece = BISHOP;
                     break;
                 case 'n':
-                    this.board.promotionPiece = KNIGHT;
+                    board.promotionPiece = KNIGHT;
                     break;
             }
+            // Remove o caractere de promoção
+            bestMove = bestMove.substring(0, 4);
         }
         this.testMove(bestMove, board);
     }
@@ -312,22 +313,18 @@ class Game {
         // Elementos do tabuleiro
         const boardElement = document.getElementById("chessboard");
         const squares = boardElement.getElementsByTagName("td");
-
         const TO_MASK = 1n << BigInt(board.toPosition);
         const FROM_MASK = 1n << BigInt(board.fromPosition);
         const color = board.selectedColor;
-
         // Variáveis de controle
         let opponentPiece = null;
         let isCapture = false;
-
         // Função para promover o peão
         const promote = (board) => {
             // Remove o peão
             board.bitboards[color][PAWN] &= ~TO_MASK; // LINHA 340 DO ERRO AQUI <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
             // Adiciona a peça promovida
             board.bitboards[color][board.promotionPiece] |= TO_MASK;
-
             // Cor da peça adversária e bitboards das peças adversárias
             const OPPONENT_COLOR = color === WHITE ? BLACK : WHITE;
             const OPPONENT_PIECES = board.bitboards[OPPONENT_COLOR][PAWN]
@@ -336,7 +333,6 @@ class Game {
                 | board.bitboards[OPPONENT_COLOR][ROOK]
                 | board.bitboards[OPPONENT_COLOR][QUEEN]
                 | board.bitboards[OPPONENT_COLOR][KING];
-
             // Verifica se houve captura de peça
             if (TO_MASK & OPPONENT_PIECES) {
                 isCapture = true;
@@ -347,13 +343,12 @@ class Game {
                     }
                 }
             }
-
             // Verifica se o rei adversário está em xeque
             const opponentKingCheck = board.isKingInCheck(board.bitboards, OPPONENT_COLOR);
             if (opponentKingCheck) {
                 board.kingCheckMask = opponentKingCheck;
                 // Verifica se o rei adversário está em xeque-mate
-                if (board.getDefenderMovesMask(board, OPPONENT_COLOR) === 0n) {
+                if (board.getDefenderMovesMask(OPPONENT_COLOR) === 0n) {
                     board.isMate = true;
                     this.renderer.showCheckmate(board);
                 } else {
@@ -365,24 +360,30 @@ class Game {
             } else {
                 board.kingCheckMask = 0n;
             }
-
             // Efeito sonoro de captura ou movimento
             this.playSound(isCapture ? CAPTURE_SOUND : MOVE_SOUND);
-
             // Contagem das jogadas completas e atualização do turno
             if (board.turn === BLACK) board.fullMoves++;
             board.turn = board.turn === WHITE ? BLACK : WHITE;
-
             // Atualiza a FEN e PGN no layout
             this.renderer.updateFEN(board);
-
-            // Se não estiver importando o a partida, registra o movimento em PGN
+            // Se não estiver ocorrendo uma importação de jogo
             if (!this.isImportingGame) {
                 const isCheck = board.kingCheckMask !== 0n;
                 board.metadata.moves.push(Notation.getSanMove(board.fromPosition, board.toPosition, board.selectedPiece, isCapture, board.promotionPiece, isCheck, board.isMate));
+                // Atualiza as notações FEN e PGN no layout
+                this.renderer.updateFEN(board);
+                this.renderer.updatePGN(board);
+                // Verifica se é o turno do Stockfish
+                if (this.isEngineTurn && this.playAgainstStockfish) {
+                    // Mostrar o tabuleiro no console
+                    this.stockfish.postMessage('position fen ' + board.fen);
+                    // Solicitar o melhor movimento com profundidade 2
+                    this.stockfish.postMessage('go depth 12');
+                } else if (!this.isEngineTurn && this.playAgainstStockfish) {
+                    this.isEngineTurn = true;
+                }
             }
-
-            this.renderer.updatePGN(board);
         };
 
         if (board.promotionPiece !== null && board.promotionPiece !== undefined) {
@@ -397,6 +398,16 @@ class Game {
             // Atualiza o tabuleiro com a peça promovida
             this.isPromotion = false;
             this.renderer.renderBoard(board);
+            if (!this.isImportingGame) {
+                if (this.isEngineTurn && this.playAgainstStockfish) {
+                    // Mostrar o tabuleiro no console
+                    this.stockfish.postMessage('position fen ' + board.fen);
+                    // Solicitar o melhor movimento com profundidade 2
+                    this.stockfish.postMessage('go depth 12');
+                } else if (!this.isEngineTurn && this.playAgainstStockfish) {
+                    this.isEngineTurn = true;
+                }
+            }
             return;
         }
 
@@ -581,11 +592,10 @@ class Game {
         let toFile = null;
         let toRank = null;
 
-
+        // Verifica se é promoção
         if (sanMove.includes("=")) {
             board.promotionPiece = PIECES_SAN.indexOf(sanMove.charAt(sanMove.length - 1));
         }
-
         // Roque curto ou longo
         if (formattedMove === "O-O" || formattedMove === "O-O-O") {
             if (board.turn === WHITE) {
