@@ -374,11 +374,9 @@ class Game {
                 // Atualiza as notações FEN e PGN no layout
                 this.renderer.updateFEN(board);
                 this.renderer.updatePGN(board);
-                // Verifica se é o turno do Stockfish
+                // Verifica se é a vez do Stockfish jogar
                 if (this.isEngineTurn && this.playAgainstStockfish) {
-                    // Mostrar o tabuleiro no console
                     this.stockfish.postMessage('position fen ' + board.fen);
-                    // Solicitar o melhor movimento com profundidade 2
                     this.stockfish.postMessage('go depth 12');
                 } else if (!this.isEngineTurn && this.playAgainstStockfish) {
                     this.isEngineTurn = true;
@@ -398,16 +396,6 @@ class Game {
             // Atualiza o tabuleiro com a peça promovida
             this.isPromotion = false;
             this.renderer.renderBoard(board);
-            if (!this.isImportingGame) {
-                if (this.isEngineTurn && this.playAgainstStockfish) {
-                    // Mostrar o tabuleiro no console
-                    this.stockfish.postMessage('position fen ' + board.fen);
-                    // Solicitar o melhor movimento com profundidade 2
-                    this.stockfish.postMessage('go depth 12');
-                } else if (!this.isEngineTurn && this.playAgainstStockfish) {
-                    this.isEngineTurn = true;
-                }
-            }
             return;
         }
 
