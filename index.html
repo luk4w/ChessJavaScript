@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luk4w - Chess Java Script</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="./favicon.ico" type="image/x-icon">
+</head>
+
+<body>
+    <main>
+        <section class="board-section">
+            <table id="chessboard"></table>
+        </section>
+
+        <section id="end" class="end-section">
+            <label id="end-game-message">Check Mate! Black Wins.</label>
+            <button id="restart-button">Restart Game</button>
+        </section>
+
+        <section class="fen-section">
+            <label for="fen">FEN</label>
+            <input id="fen" type="text" value="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1">
+        </section>
+
+        <section class="pgn-section">
+            <label for="pgn">PGN</label>
+            <textarea id="pgn" type="text" value=""></textarea>
+        </section>
+
+        <section class="import-pgn-section">
+            <label id="import-error"></label>
+            <button id="import-pgn-button">IMPORT PGN</button>
+        </section>
+
+    </main>
+    <script type="module" src="src/chess.js"></script>
+</body>
+
+</html>
